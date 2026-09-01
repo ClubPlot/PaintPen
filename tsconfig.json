@@ -1,8 +1,8 @@
 {
   "compilerOptions": {
-    "target": "es2023",
+    "target": "es2024",
     "module": "esnext",
-    "lib": ["ES2023", "DOM"],
+    "lib": ["ES2024", "DOM"],
     "types": ["vite/client"],
     "allowArbitraryExtensions": true,
     "skipLibCheck": true,
