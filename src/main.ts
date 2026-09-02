@@ -1,60 +1,148 @@
 import './style.css'
-import heroImg from './assets/hero.png'
-import typescriptLogo from './assets/typescript.svg'
-import viteLogo from './assets/vite.svg'
-import { setupCounter } from './counter.ts'
+import { createConnection, DEFAULT_URL, DSC, HPGL, type Connection } from './plot.ts'
+import { mountPaint } from './paint.ts'
 
 document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
-<section id="center">
-  <div class="hero">
-    <img src="${heroImg}" class="base" width="170" height="179">
-    <img src="${typescriptLogo}" class="framework" alt="TypeScript logo"/>
-    <img src="${viteLogo}" class="vite" alt="Vite logo" />
+<header>
+  <h1>interplot</h1>
+  <div class="row">
+    <input id="url" type="text" spellcheck="false" value="${DEFAULT_URL}" />
+    <button id="connect" type="button" class="primary">Connect</button>
+    <span id="status" class="status idle">disconnected</span>
   </div>
-  <div>
-    <h1>Get started</h1>
-    <p>Edit <code>src/main.ts</code> and save to test <code>HMR</code></p>
-  </div>
-  <button id="counter" type="button" class="counter"></button>
-</section>
+</header>
 
-<div class="ticks"></div>
+<form id="command-form">
+  <input id="command" type="text" spellcheck="false" autocomplete="off"
+         placeholder="Command to send…" disabled />
+  <button id="send" type="submit" disabled>Send</button>
+  <button id="ping" type="button" disabled title="Sends an ESC . A identification request">Test</button>
+  <button id="oa" type="button" disabled title="Sends OA; — output actual pen position">OA</button>
+</form>
 
-<section id="next-steps">
-  <div id="docs">
-    <svg class="icon" role="presentation" aria-hidden="true"><use href="/icons.svg#documentation-icon"></use></svg>
-    <h2>Documentation</h2>
-    <p>Your questions, answered</p>
-    <ul>
-      <li>
-        <a href="https://vite.dev/" target="_blank">
-          <img class="logo" src="${viteLogo}" alt="" />
-          Explore Vite
-        </a>
-      </li>
-      <li>
-        <a href="https://www.typescriptlang.org" target="_blank">
-          <img class="button-icon" src="${typescriptLogo}" alt="">
-          Learn more
-        </a>
-      </li>
-    </ul>
-  </div>
-  <div id="social">
-    <svg class="icon" role="presentation" aria-hidden="true"><use href="/icons.svg#social-icon"></use></svg>
-    <h2>Connect with us</h2>
-    <p>Join the Vite community</p>
-    <ul>
-      <li><a href="https://github.com/vitejs/vite" target="_blank"><svg class="button-icon" role="presentation" aria-hidden="true"><use href="/icons.svg#github-icon"></use></svg>GitHub</a></li>
-      <li><a href="https://chat.vite.dev/" target="_blank"><svg class="button-icon" role="presentation" aria-hidden="true"><use href="/icons.svg#discord-icon"></use></svg>Discord</a></li>
-      <li><a href="https://x.com/vite_js" target="_blank"><svg class="button-icon" role="presentation" aria-hidden="true"><use href="/icons.svg#x-icon"></use></svg>X.com</a></li>
-      <li><a href="https://bsky.app/profile/vite.dev" target="_blank"><svg class="button-icon" role="presentation" aria-hidden="true"><use href="/icons.svg#bluesky-icon"></use></svg>Bluesky</a></li>
-    </ul>
-  </div>
-</section>
+<section id="paint"></section>
 
-<div class="ticks"></div>
-<section id="spacer"></section>
+<pre id="log"></pre>
 `
 
-setupCounter(document.querySelector<HTMLButtonElement>('#counter')!)
+const urlInput = document.querySelector<HTMLInputElement>('#url')!
+const connectButton = document.querySelector<HTMLButtonElement>('#connect')!
+const status = document.querySelector<HTMLSpanElement>('#status')!
+const form = document.querySelector<HTMLFormElement>('#command-form')!
+const commandInput = document.querySelector<HTMLInputElement>('#command')!
+const sendButton = document.querySelector<HTMLButtonElement>('#send')!
+const pingButton = document.querySelector<HTMLButtonElement>('#ping')!
+const oaButton = document.querySelector<HTMLButtonElement>('#oa')!
+const log = document.querySelector<HTMLPreElement>('#log')!
+const paintHost = document.querySelector<HTMLElement>('#paint')!
+
+let connection: Connection | null = null
+
+/** Renders control characters so an ESC-prefixed reply is legible in the log. */
+function printable(text: string) {
+  return text.replace(/[\x00-\x1f\x7f]/g, (c) =>
+    c === '\n' ? '\n' : `\\x${c.charCodeAt(0).toString(16).padStart(2, '0')}`)
+}
+
+function write(kind: 'sent' | 'recv' | 'info' | 'error', text: string) {
+  const line = document.createElement('div')
+  line.className = `line ${kind}`
+  line.textContent = `${new Date().toLocaleTimeString()}  ${printable(text)}`
+  log.append(line)
+  log.scrollTop = log.scrollHeight
+}
+
+function setStatus(state: 'idle' | 'pending' | 'live', text: string) {
+  status.className = `status ${state}`
+  status.textContent = text
+
+  const live = state === 'live'
+  for (const el of [commandInput, sendButton, pingButton, oaButton]) el.disabled = !live
+  connectButton.textContent = live ? 'Disconnect' : 'Connect'
+  connectButton.disabled = state === 'pending'
+  urlInput.disabled = state !== 'idle'
+}
+
+/** Drains the incoming queue until the socket closes. */
+async function pump(active: Connection) {
+  for (;;) {
+    const { value, done } = await active.read()
+    if (done) break
+    write('recv', `< ${value}`)
+  }
+  if (connection === active) {
+    connection = null
+    paint.connectionChanged()
+    setStatus('idle', 'disconnected')
+    write('info', 'connection closed')
+  }
+}
+
+async function connect() {
+  const url = urlInput.value.trim()
+  if (!url) return
+
+  setStatus('pending', 'connecting…')
+  write('info', `connecting to ${url}`)
+
+  let pending: Connection
+  try {
+    pending = createConnection(url)
+  } catch (error) {
+    setStatus('idle', 'disconnected')
+    write('error', `invalid URL: ${error instanceof Error ? error.message : error}`)
+    return
+  }
+
+  try {
+    await pending.ready()
+  } catch (error) {
+    setStatus('idle', 'disconnected')
+    write('error', `could not connect: ${error instanceof Error ? error.message : error}`)
+    return
+  }
+
+  connection = pending
+  paint.connectionChanged()
+  setStatus('live', 'connected')
+  write('info', 'connection open')
+  void pump(pending)
+}
+
+/* Freehand drawing emits an instruction every few frames, which would bury the
+   log — those go out quietly and are summarised once the stroke ends. */
+function send(data: string, quiet = false) {
+  if (!connection) return
+  connection.write(data)
+  if (!quiet) write('sent', `> ${data}`)
+}
+
+const paint = mountPaint(paintHost, {
+  send,
+  note: (text) => write('info', text),
+  isLive: () => connection !== null,
+})
+
+connectButton.addEventListener('click', () => {
+  if (connection) {
+    /* The socket stays open until the peer answers the close frame, so hold a
+       pending state rather than claiming we are already disconnected. */
+    setStatus('pending', 'disconnecting…')
+    connection.close()
+  } else {
+    void connect()
+  }
+})
+
+form.addEventListener('submit', (event) => {
+  event.preventDefault()
+  const command = commandInput.value
+  if (!command) return
+  send(command)
+  commandInput.value = ''
+})
+
+pingButton.addEventListener('click', () => send(DSC.OutputIdentification))
+oaButton.addEventListener('click', () => send(HPGL.OutputActualPosition))
+
+setStatus('idle', 'disconnected')
