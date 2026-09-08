@@ -148,6 +148,19 @@ button {
   }
 }
 
+/* The live gamepad dump on the gamepad page: same well as the log, but sized
+   by its contents rather than filling what is left of the page. */
+#state {
+  margin: 0;
+  padding: 12px;
+  overflow-x: auto;
+  font: 14px/165% var(--mono);
+  color: var(--text-h);
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
 #log {
   flex: 1 1 auto;
   margin: 0;
