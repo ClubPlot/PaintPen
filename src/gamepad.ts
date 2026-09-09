@@ -130,56 +130,122 @@ function render() {
   requestAnimationFrame(render);
 }
 
-let plotting = false;
+/* Below this the stick is reading noise around centre, not a heading. */
+const DEADZONE = 0.12;
 
-async function plot(reach: number = 10) {
-  const connected = navigator
-    .getGamepads()
-    .filter((p): p is Gamepad => p !== null);
+/* `VS` speaks cm/s, and governs pen-down moves only — a pen-up move always
+   runs at the carriage maximum. 38.1 is the ceiling on a 7475A, which rejects
+   anything higher as a bad parameter; a 7550 will take more. */
+const MAX_SPEED_CM_S = 38.1;
 
-  if (connected.length > 0 && connection !== null) {
+export async function plotToEnd([vx, vy]: [vx: number, vy: number], dt: number = 250) {
 
-    if (plotting === false) {
-      // Hardcoded init command; should edit later
-      connection.write(`IN;SP4;`);
-      plotting = true;
-    }
+  if (connection !== null) {
+    const velocity = Math.hypot(vx, vy);
 
-    const pad = connected[0];
+    /* A centred stick would divide by zero and turn the unit vector — and so
+       every distance computed from it — into NaN. */
+    if (velocity < DEADZONE) return;
 
-    const [y, x] = pad.axes;
+    const [ dvx, dvy ] = [(vx / velocity),(vy / velocity)];
+    
 
-    const dx = Math.trunc(x * reach);
-    const dy = Math.trunc(y * reach);
+    connection.write(`OA;`)
+    const position = await connection.read()
+    if (!position.done && typeof position.value === "string") {
+      
+      const [x0, y0] = position
+        .value
+        .split(":")[1]
+        .split(",")
+        .map(Number);
 
-    console.log(x, y, dx, dy, reach);
+      connection.write(`OW;`);
+      const bounds = await connection.read()
+      if (!bounds.done && typeof bounds.value === "string") {
+        const [xmin, ymin, xmax, ymax] = bounds
+        .value
+        .split(":")[1]
+        .split(",")
+        .map(Number);
 
-    if (Math.abs(dx) > 0 || Math.abs(dy) > 0) {
-      const cmd = `PR ${dx},${dy};`
 
-      console.log('CMD:', cmd);
+      /* How far this heading runs before it leaves the window. Each axis
+         gives the two distances at which the pen crosses that pair of edges;
+         `max` picks the one ahead of us, since a negative `dv` swaps which
+         edge comes first. The pen starts inside, so the other side of the
+         slab test is behind us and the first axis to run out is the answer.
+         A zero component divides to +/-Infinity, which is exactly right: an
+         axis you are not moving along never limits the distance. */
+      const sxmax = Math.max((xmin - x0) / dvx, (xmax - x0) / dvx)
+      const symax = Math.max((ymin - y0) / dvy, (ymax - y0) / dvy)
+
+      const distanceToEdge = Math.min(sxmax, symax)
+
+      const dx = dvx * dt;
+      const dy = dvy * dt;
+
+      const numSegments = Math.floor(distanceToEdge / dt);
+
+      const cmd = `VS${(Math.min(velocity, 1) * MAX_SPEED_CM_S).toFixed(1)}; ${Array(numSegments).fill(`PR ${dx},${dy};`).join('')};OA;`;
 
       connection.write(cmd);
-      // Not sure reading after OA; actually works.
-      // await connection.read();
 
+      }
     }
   }
-
-  requestAnimationFrame(() => plot());
 }
 
-window.addEventListener("gamepadconnected", () => {
-  /* A second pad joining must not start a second loop. */
-  if (polling) return;
-  polling = true;
-  requestAnimationFrame(render);
-});
+  let plotting = false;
 
-window.addEventListener("gamepadconnected", async () => {
-  requestAnimationFrame(() => plot());
-});
+  async function plot(reach: number = 10) {
+    const connected = navigator
+      .getGamepads()
+      .filter((p): p is Gamepad => p !== null);
 
-pads.textContent = "Press a button on a controller to connect it.";
+    if (connected.length > 0 && connection !== null) {
 
-setStatus("idle", "disconnected");
+      if (plotting === false) {
+        // Hardcoded init command; should edit later
+        connection.write(`IN;SP4;`);
+        plotting = true;
+      }
+
+      const pad = connected[0];
+
+      const [y, x] = pad.axes;
+
+      const dx = Math.trunc(x * reach);
+      const dy = Math.trunc(y * reach);
+
+      console.log(x, y, dx, dy, reach);
+
+      if (Math.abs(dx) > 0 || Math.abs(dy) > 0) {
+        const cmd = `PR ${dx},${dy};`
+
+        console.log('CMD:', cmd);
+
+        connection.write(cmd);
+        // Not sure reading after OA; actually works.
+        // await connection.read();
+
+      }
+    }
+
+    requestAnimationFrame(() => plot());
+  }
+
+  window.addEventListener("gamepadconnected", () => {
+    /* A second pad joining must not start a second loop. */
+    if (polling) return;
+    polling = true;
+    requestAnimationFrame(render);
+  });
+
+  window.addEventListener("gamepadconnected", async () => {
+    requestAnimationFrame(() => plot());
+  });
+
+  pads.textContent = "Press a button on a controller to connect it.";
+
+  setStatus("idle", "disconnected");
