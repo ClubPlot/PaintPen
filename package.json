@@ -12,5 +12,8 @@
     "typescript": "~6.0.2",
     "vite": "^8.2.2"
   },
-  "packageManager": "yarn@4.18.0"
+  "packageManager": "yarn@4.18.0",
+  "dependencies": {
+    "rhino3dm": "^8.32.2"
+  }
 }

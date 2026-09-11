@@ -210,6 +210,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "interplot@workspace:."
   dependencies:
+    rhino3dm: "npm:^8.32.2"
     typescript: "npm:~6.0.2"
     vite: "npm:^8.2.2"
   languageName: unknown
@@ -427,6 +428,13 @@ __metadata:
   version: 7.0.0
   resolution: "proc-log@npm:7.0.0"
   checksum: 10c0/b89c2d862604f35fec795477b0c7e376feab3ba0d4f4d291c4e959567442697cf451ac557d0623c1cc38af45a78128b983410f397a10c5d3a67f76c33de4754b
+  languageName: node
+  linkType: hard
+
+"rhino3dm@npm:^8.32.2":
+  version: 8.32.2
+  resolution: "rhino3dm@npm:8.32.2"
+  checksum: 10c0/6b8878e0ffb581186caf25cfb4e58c30b6d144b99a0c2a83fbd56abd2fcf4037fdfeb70fcd01751d54e1d0cee4f04e8333990f00dd0de4c38818694a3df456a4
   languageName: node
   linkType: hard
 

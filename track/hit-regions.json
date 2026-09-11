@@ -1,0 +1,103 @@
+{
+  "source": "track/track.3dm",
+  "layer": "HIT_REGIONS",
+  "count": 5,
+  "summary": {
+    "rectangles": 2,
+    "wedge_bands": 3
+  },
+  "regions": [
+    {
+      "type": "rectangle",
+      "center": [
+        3.1563,
+        9.875
+      ],
+      "width": 0.875,
+      "height": 4.5025,
+      "angleDeg": 90,
+      "corners": [
+        [
+          0.905,
+          9.4375
+        ],
+        [
+          0.905,
+          10.3125
+        ],
+        [
+          5.4075,
+          10.3125
+        ],
+        [
+          5.4075,
+          9.4375
+        ]
+      ]
+    },
+    {
+      "type": "rectangle",
+      "center": [
+        3.1563,
+        1.125
+      ],
+      "width": 4.5025,
+      "height": 0.875,
+      "angleDeg": 0,
+      "corners": [
+        [
+          0.905,
+          1.5625
+        ],
+        [
+          5.4075,
+          1.5625
+        ],
+        [
+          5.4075,
+          0.6875
+        ],
+        [
+          0.905,
+          0.6875
+        ]
+      ]
+    },
+    {
+      "type": "wedge_band",
+      "center": [
+        5.4075,
+        2.875
+      ],
+      "innerRadius": 1.3125,
+      "outerRadius": 2.1875,
+      "startAngleDeg": -90,
+      "endAngleDeg": 131.4096,
+      "sweepDeg": 221.4096
+    },
+    {
+      "type": "wedge_band",
+      "center": [
+        3.0925,
+        5.5
+      ],
+      "innerRadius": 1.3125,
+      "outerRadius": 2.1875,
+      "startAngleDeg": 48.5904,
+      "endAngleDeg": -48.5904,
+      "sweepDeg": 262.8192
+    },
+    {
+      "type": "wedge_band",
+      "center": [
+        5.4075,
+        8.125
+      ],
+      "innerRadius": 1.3125,
+      "outerRadius": 2.1875,
+      "startAngleDeg": -131.4096,
+      "endAngleDeg": 90,
+      "sweepDeg": 221.4096
+    }
+  ]
+}
