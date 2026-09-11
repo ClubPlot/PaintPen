@@ -1,70 +1,105 @@
 # CLAUDE.md
 
-## Rhino track file → hit regions
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-`track/track.3dm` is a Rhino model of a race track (an oval loop of straightaways
-and turns). The gameplay-relevant part is the **`HIT_REGIONS`** layer, which
-defines the areas a moving object can occupy on the track. We built a small
-rhino3dm.js toolchain to extract those regions and verify them.
+## What this is
 
-### The `HIT_REGIONS` layer
+`interplot` is a browser app that drives a vintage **HP-GL pen plotter** (HP 7475A / 7550
+class) live over a WebSocket bridge. There is no backend in this repo — the app talks to a
+socket-to-serial bridge on the plotter host (`DEFAULT_URL` points at a Tailscale address,
+`ws://plotpi…:8181`). Two independent front-ends share the protocol layer:
 
-Every hit region is one closed curve, and is exactly one of two shapes:
+- **`index.html` → `src/main.ts`** — a Microsoft Paint-style drawing surface that emits HP-GL.
+- **`gamepad.html` → `src/gamepad.ts`** — drive the pen directly with a game controller.
 
-- **Rectangle** — a closed `PolylineCurve` with 4 corners (the two straightaways).
-- **Wedge band** — a closed `PolyCurve` made of two concentric arcs (inner +
-  outer radius) joined by two radial line segments; i.e. an annular sector (the
-  turns).
+The `track/` directory is a separate concern: a Rhino model and tooling for a race-track game
+(see the last section).
 
-The current file has **5 regions**: 2 rectangles + 3 wedge bands, which chain
-together into one closed track loop. All bands share the same radial thickness
-(inner `1.3125` → outer `2.1875`, i.e. `0.875` wide), matching the `0.875`-wide
-straightaways.
+## Commands
 
-> Note: an earlier version of the layer also contained a `CHECKER` block instance
-> (`InstanceReference`). The extractor warns on and skips anything that is not a
-> rectangle or wedge band, so stray geometry on the layer is surfaced, not
-> silently included.
+```sh
+yarn dev              # Vite dev server (both pages)
+yarn build            # tsc type-check (noEmit) + vite build — this is also the "lint"
+yarn preview          # serve the production build
 
-### Test points
+node test-hit-regions.mjs      # the only automated test; validates track hit regions
+node extract-hit-regions.mjs   # regenerate track/hit-regions.json from the .3dm
+```
 
-Two layers hold reference points for validating the regions:
+There is no separate linter or test runner. `tsc` (via `yarn build`) is the type/lint gate;
+its config is strict (`noUnusedLocals`, `noUnusedParameters`, `erasableSyntaxOnly`). The only
+runtime test is `test-hit-regions.mjs`, run directly with `node`.
 
-- **`TEST_POINTS_HIT`** — points that must fall **inside** at least one region.
-- **`TEST_POINTS_MISS`** — points that must fall **outside** every region.
+## Architecture
 
-### Scripts
+Vite is configured for a **multi-page build** (`vite.config.ts` lists `index.html` and
+`gamepad.html` as separate inputs). The two pages do not share state — only the modules below.
 
-Both are ES modules that use the `rhino3dm` npm package (WASM) to read the
-`.3dm` directly — no Rhino install required.
+### `src/plot.ts` — the protocol + transport layer (start here)
 
-- **`extract-hit-regions.mjs`** — reads `HIT_REGIONS` and emits concise JSON
-  descriptions of each region. Exports `extractRegions(file)` for reuse and
-  prints JSON when run directly.
+Everything device-specific lives here and is imported by both front-ends:
 
-  ```sh
-  node extract-hit-regions.mjs [path/to/file.3dm]   # default: track/track.3dm
-  ```
+- **`HPGL`** and **`DSC`** — command builders. `HPGL` is plain HP-GL (`PU`/`PD`/`PA`/`SP`/`LB`…,
+  each terminated with `;`); `DSC` is the ESC-prefixed device-control set. Labels (`LB`) read
+  raw bytes until an ETX terminator, so control characters are stripped before sending.
+- **Unit system** — the plot area is `PLOT_WIDTH × PLOT_HEIGHT` = `10000 × 7500` plotter units
+  (1 unit = 0.025 mm, so `PLOTTER_UNITS_PER_CM = 400`); a 4:3 area. **HP-GL's origin is
+  lower-left**, not top-left — coordinate conversions must account for this.
+- **`PENS` / `DEFAULT_PEN`** — the physical pen carousel. `DEFAULT_PEN = 3` is an index into
+  `PENS`, one less than its `SP` number (slots 1–3 are out of service on the machine, so
+  drawing starts on `SP4;`).
+- **`createConnection(url)`** returns a `Connection`: a thin WebSocket wrapper exposing
+  `ready()` / `read()` / `write()` / `close()`. Incoming messages are buffered through a
+  `ReadableStream`; consumers `pump()` it in a loop until close.
 
-  Rectangle → `{ type, center, width, height, angleDeg, corners }`
-  (`corners` is authoritative; `width`/`height` are edge lengths in corner order).
-  Wedge band → `{ type, center, innerRadius, outerRadius, startAngleDeg, endAngleDeg, sweepDeg }`
-  (angles in degrees, sweep is CCW from `startAngleDeg`).
+### `src/paint.ts` — the drawing UI (large, self-contained)
 
-  A generated snapshot lives at `track/hit-regions.json`.
+An MS-Paint clone on a fixed **640 × 480** canvas (same 4:3 shape as the plot area).
+Key ideas that span the file:
 
-- **`test-hit-regions.mjs`** — extracts the regions, reads the two point layers,
-  and asserts every HIT point is inside a region and every MISS point is outside
-  all of them. Prints failures with coordinates and sets a non-zero exit code on
-  failure (CI-friendly).
+- **Coordinate flow**: everything is kept in canvas pixels and converted to plotter units only
+  on the way out (`CM_PER_PIXEL`). The plotter's ~1 KB input buffer means polylines are chunked
+  into short instructions (`MAX_PAIRS_PER_MESSAGE`), and freehand samples closer than
+  `MIN_SEND_DISTANCE` are dropped.
+- **Tools**: the 16-tool toolbox mirrors real MS Paint, but only tools with an honest HP-GL
+  equivalent (pencil, line, rect, ellipse, text) actually plot; the rest are drawn but inert,
+  each with a `why` explaining what the plotter cannot reproduce.
+- **Text** mirrors the plotter's stick-font geometry (fixed-pitch, `SI` sizes in cm, 1.5× char
+  advance, 2× line advance) so the on-screen box stands where the ink will land.
+- Mounted via `mountPaint(host, port)` where `port` supplies `send`/`note`/`isLive` from
+  `main.ts`; the `quiet` flag on `send` keeps per-frame freehand batches out of the log.
 
-  ```sh
-  node test-hit-regions.mjs [path/to/file.3dm]
-  ```
+### `src/gamepad.ts` — controller-driven plotting
 
-### Point-in-region logic (shared by the tests and any consumer)
+Polls the Gamepad API at frame rate (`requestAnimationFrame`) and turns stick input into
+relative pen moves (`PR`). Notable: velocity magnitude maps to plotter speed (`VS`, capped at
+`MAX_SPEED_CM_S = 38.1` for a 7475A), a `DEADZONE` guards against divide-by-zero on a centred
+stick, and `plotToEnd` does a slab/ray-clip against the plotter window bounds (`OW`) so a move
+stops at the paper edge. This file is the most experimental / in-flux part of the codebase.
 
-- **Rectangle**: convex-quad test — the point must lie on the same side of all
-  four edges (handles rotated rectangles, not just axis-aligned).
-- **Wedge band**: distance from `center` must be within `[innerRadius, outerRadius]`,
-  and the angle about `center` must fall within the CCW sweep from `startAngleDeg`.
+## Track / Rhino hit regions (`track/`)
+
+`track/track.3dm` is a Rhino model of an oval race track. The **`HIT_REGIONS`** layer defines
+the areas an object can occupy; every region is one closed curve of exactly one of two shapes:
+
+- **Rectangle** — a closed `PolylineCurve` with 4 corners (the straightaways).
+- **Wedge band** — a closed `PolyCurve` of two concentric arcs (inner + outer radius) joined by
+  two radial lines, i.e. an annular sector (the turns).
+
+The current file holds 5 regions (2 rectangles + 3 wedge bands) that chain into one closed
+loop; all bands share a `0.875`-wide radial thickness matching the straightaways.
+
+- **`extract-hit-regions.mjs`** reads the layer via `rhino3dm.js` (WASM, no Rhino install) and
+  emits concise JSON. It exports `extractRegions(file)` for reuse and prints JSON when run
+  directly; it warns on and skips any geometry that is not a rectangle or wedge band. Snapshot:
+  `track/hit-regions.json`.
+  - rectangle → `{ type, center, width, height, angleDeg, corners }` (`corners` is authoritative)
+  - wedge band → `{ type, center, innerRadius, outerRadius, startAngleDeg, endAngleDeg, sweepDeg }`
+    (angles in degrees, sweep is CCW from `startAngleDeg`)
+- **`test-hit-regions.mjs`** asserts every point on `TEST_POINTS_HIT` falls inside a region and
+  every point on `TEST_POINTS_MISS` falls outside all of them (non-zero exit on failure). The
+  hit-test logic: convex-quad side test for rectangles; radius-in-`[inner,outer]` plus
+  CCW-sweep angle test for wedge bands.
+
+`track/pdf2hpgl.sh` is an unrelated utility that converts PDF/PS/EPS linework to HP-GL
+(ghostscript → pstoedit → affine fit/rotate/pen transform).
