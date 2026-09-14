@@ -201,6 +201,7 @@ export async function plotToEnd([vx, vy]: [vx: number, vy: number], dt: number =
 }
 const reach = 10;
 let plotting = false;
+let currentPoint = [469,948];
 
 let lastTime = 0;
 const minInterval = 1000 / 10;
@@ -220,7 +221,7 @@ async function plot(currentTime: number) {
 
       if (plotting === false) {
         // Hardcoded init command; should edit later
-        connection.write(`IN;SP4;PD;`);
+        connection.write(`IN;SP4;PA 469,948;PD;`);
         plotting = true;
       }
 
@@ -233,7 +234,9 @@ async function plot(currentTime: number) {
       const dy = Math.trunc(y * reach * speed);
 
       if (Math.abs(dx) > 0 || Math.abs(dy) > 0) {
+        // If out of bounds, drop cmd else continue
         const cmd = `VS ${speed}; PR ${dx},${dy};`
+        currentPoint = [currentPoint[0] + dx, currentPoint[1] + dy]
 
         connection.write(cmd);
         // Not sure reading after OA; actually works.
