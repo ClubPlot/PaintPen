@@ -239,8 +239,11 @@ async function plot(currentTime: number) {
         // If out of bounds, drop cmd else continue
         // if (outofBounds) {
           // pass currentPoint command
-        // } else {
+        // } else if (at finish line) {
+          // change pen and go back to start
+        //  else{
           // pass nextPoint command
+          // }
         }
         const cmd = `VS ${speed}; PR ${dx},${dy};`
 
