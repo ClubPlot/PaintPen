@@ -11,6 +11,8 @@ const log = document.querySelector<HTMLPreElement>("#log")!;
 urlInput.value = DEFAULT_URL;
 
 let connection: Connection | null = null;
+const waiting: ((line: string | null) => void)[] = [];
+
 
 /** Renders control characters so an ESC-prefixed reply is legible in the log. */
 function printable(text: string) {
@@ -25,6 +27,12 @@ function write(kind: "sent" | "recv" | "info" | "error", text: string) {
   line.textContent = `${new Date().toLocaleTimeString()}  ${printable(text)}`;
   log.append(line);
   log.scrollTop = log.scrollHeight;
+}
+function ask(active: Connection, query: string) {
+  const { promise, resolve } = Promise.withResolvers<string | null>();
+  waiting.push(resolve);
+  active.write(query);
+  return promise;
 }
 
 function setStatus(kind: "idle" | "pending" | "live", text: string) {
@@ -41,8 +49,11 @@ async function pump(active: Connection) {
   for (; ;) {
     const { value, done } = await active.read();
     if (done) break;
-    write("recv", `< ${value}`);
+    const waiter = waiting.shift();
+    if (waiter) waiter(value);
+    else write("recv", `< ${value}`);
   }
+  while (waiting.length) waiting.shift()!(null);
   if (connection === active) {
     connection = null;
     setStatus("idle", "disconnected");
@@ -139,6 +150,8 @@ const DEADZONE = 0.12;
 const MAX_SPEED_CM_S = 38.1;
 
 export async function plotToEnd([vx, vy]: [vx: number, vy: number], dt: number = 250) {
+  const active = connection;
+  if (!active) return;
 
   if (connection !== null) {
     const velocity = Math.hypot(vx, vy);
@@ -147,83 +160,80 @@ export async function plotToEnd([vx, vy]: [vx: number, vy: number], dt: number =
        every distance computed from it — into NaN. */
     if (velocity < DEADZONE) return;
 
-    const [ dvx, dvy ] = [(vx / velocity),(vy / velocity)];
-    
+    const [dvx, dvy] = [(vx / velocity), (vy / velocity)];
 
-    connection.write(`OA;`)
-    const position = await connection.read()
-    if (!position.done && typeof position.value === "string") {
-      
-      const [x0, y0] = position
-        .value
-        .split(":")[1]
-        .split(",")
-        .map(Number);
+    const position = await ask(active, `OA;`);
+    if (position === null) return;
+    const [x0, y0] = position
+      .split(":")[1]
+      .split(",")
+      .map(Number);
 
-      connection.write(`OW;`);
-      const bounds = await connection.read()
-      if (!bounds.done && typeof bounds.value === "string") {
-        const [xmin, ymin, xmax, ymax] = bounds
-        .value
-        .split(":")[1]
-        .split(",")
-        .map(Number);
+    const bounds = await ask(active, `OW;`);
+    if (bounds === null) return;
+    const [xmin, ymin, xmax, ymax] = bounds
+      .split(":")[1]
+      .split(",")
+      .map(Number);
 
+    /* How far this heading runs before it leaves the window. Each axis
+       gives the two distances at which the pen crosses that pair of edges;
+       `max` picks the one ahead of us, since a negative `dv` swaps which
+       edge comes first. The pen starts inside, so the other side of the
+       slab test is behind us and the first axis to run out is the answer.
+       A zero component divides to +/-Infinity, which is exactly right: an
+       axis you are not moving along never limits the distance. */
+    const sxmax = Math.max((xmin - x0) / dvx, (xmax - x0) / dvx)
+    const symax = Math.max((ymin - y0) / dvy, (ymax - y0) / dvy)
 
-      /* How far this heading runs before it leaves the window. Each axis
-         gives the two distances at which the pen crosses that pair of edges;
-         `max` picks the one ahead of us, since a negative `dv` swaps which
-         edge comes first. The pen starts inside, so the other side of the
-         slab test is behind us and the first axis to run out is the answer.
-         A zero component divides to +/-Infinity, which is exactly right: an
-         axis you are not moving along never limits the distance. */
-      const sxmax = Math.max((xmin - x0) / dvx, (xmax - x0) / dvx)
-      const symax = Math.max((ymin - y0) / dvy, (ymax - y0) / dvy)
+    const distanceToEdge = Math.min(sxmax, symax)
 
-      const distanceToEdge = Math.min(sxmax, symax)
+    const dx = dvx * dt;
+    const dy = dvy * dt;
 
-      const dx = dvx * dt;
-      const dy = dvy * dt;
+    const numSegments = Math.floor(distanceToEdge / dt);
 
-      const numSegments = Math.floor(distanceToEdge / dt);
+    const cmd = `VS${(Math.min(velocity, 1) * MAX_SPEED_CM_S).toFixed(1)}; PD; ${Array(numSegments).fill(`PR ${dx},${dy};`).join('')};OA;`;
 
-      const cmd = `VS${(Math.min(velocity, 1) * MAX_SPEED_CM_S).toFixed(1)}; ${Array(numSegments).fill(`PR ${dx},${dy};`).join('')};OA;`;
+    await ask(active, cmd)
 
-      connection.write(cmd);
-
-      }
-    }
   }
 }
+const reach = 10;
+let plotting = false;
 
-  let plotting = false;
+let lastTime = 0;
+const minInterval = 1000 / 10;
 
-  async function plot(reach: number = 10) {
-    const connected = navigator
-      .getGamepads()
-      .filter((p): p is Gamepad => p !== null);
+async function plot(currentTime: number) {
+  requestAnimationFrame(plot);
 
-    if (connected.length > 0 && connection !== null) {
+  const connected = navigator
+    .getGamepads()
+    .filter((p): p is Gamepad => p !== null);
+
+  if (connected.length > 0 && connection !== null) {
+    const deltaTime = currentTime - lastTime;
+
+    if (deltaTime >= minInterval) {
+      lastTime = currentTime - (deltaTime % minInterval);
 
       if (plotting === false) {
         // Hardcoded init command; should edit later
-        connection.write(`IN;SP4;`);
+        connection.write(`IN;SP4;PD;`);
         plotting = true;
       }
 
       const pad = connected[0];
 
       const [y, x] = pad.axes;
+      const speed = Math.floor((39 * pad.buttons[7].value) + 1);
 
-      const dx = Math.trunc(x * reach);
-      const dy = Math.trunc(y * reach);
-
-      console.log(x, y, dx, dy, reach);
+      const dx = Math.trunc(x * reach * speed);
+      const dy = Math.trunc(y * reach * speed);
 
       if (Math.abs(dx) > 0 || Math.abs(dy) > 0) {
-        const cmd = `PR ${dx},${dy};`
-
-        console.log('CMD:', cmd);
+        const cmd = `VS ${speed}; PR ${dx},${dy};`
 
         connection.write(cmd);
         // Not sure reading after OA; actually works.
@@ -231,21 +241,22 @@ export async function plotToEnd([vx, vy]: [vx: number, vy: number], dt: number =
 
       }
     }
-
-    requestAnimationFrame(() => plot());
   }
 
-  window.addEventListener("gamepadconnected", () => {
-    /* A second pad joining must not start a second loop. */
-    if (polling) return;
-    polling = true;
-    requestAnimationFrame(render);
-  });
 
-  window.addEventListener("gamepadconnected", async () => {
-    requestAnimationFrame(() => plot());
-  });
+}
 
-  pads.textContent = "Press a button on a controller to connect it.";
+window.addEventListener("gamepadconnected", () => {
+  /* A second pad joining must not start a second loop. */
+  if (polling) return;
+  polling = true;
+  requestAnimationFrame(render);
+});
 
-  setStatus("idle", "disconnected");
+window.addEventListener("gamepadconnected", async () => {
+  requestAnimationFrame(plot);
+});
+
+pads.textContent = "Press a button on a controller to connect it.";
+
+setStatus("idle", "disconnected");
