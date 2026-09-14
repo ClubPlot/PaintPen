@@ -234,9 +234,15 @@ async function plot(currentTime: number) {
       const dy = Math.trunc(y * reach * speed);
 
       if (Math.abs(dx) > 0 || Math.abs(dy) > 0) {
+        // let current = currentPoint
+        // let nextPoint = [currentPoint[0] + dx, currentPoint[1] + dy]
         // If out of bounds, drop cmd else continue
+        // if (outofBounds) {
+          // pass currentPoint command
+        // } else {
+          // pass nextPoint command
+        }
         const cmd = `VS ${speed}; PR ${dx},${dy};`
-        currentPoint = [currentPoint[0] + dx, currentPoint[1] + dy]
 
         connection.write(cmd);
         // Not sure reading after OA; actually works.
