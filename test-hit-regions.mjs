@@ -3,16 +3,22 @@
 // Points on TEST_POINTS_HIT  must fall INSIDE at least one region.
 // Points on TEST_POINTS_MISS must fall OUTSIDE every region.
 //
+// The regions come out of the extractor in plotter units, so the test points
+// are put through the same transform before they are compared.
+//
 // Usage: node test-hit-regions.mjs [path/to/file.3dm]
 
 import rhino3dm from 'rhino3dm';
 import { readFileSync } from 'node:fs';
-import { extractRegions } from './extract-hit-regions.mjs';
+import { extractRegions, toPlotter } from './extract-hit-regions.mjs';
 
 const FILE = process.argv[2] ?? 'track/track.3dm';
 const HIT_LAYER = 'TEST_POINTS_HIT';
 const MISS_LAYER = 'TEST_POINTS_MISS';
-const TOL = 1e-6; // points sit on the same construction grid as the regions
+// The points sit on the same construction grid as the regions, but both are
+// rounded to whole plotter units on the way out of the model, so a point on a
+// boundary can land up to one unit (0.025 mm) to either side of it.
+const TOL = 1;
 
 // ---- point-in-region tests --------------------------------------------------
 // Convex-quad test: the point must lie on the same side of all four edges.
@@ -23,7 +29,8 @@ function inRectangle(p, r) {
     const a = c[i];
     const b = c[(i + 1) % c.length];
     const cross = (b[0] - a[0]) * (p[1] - a[1]) - (b[1] - a[1]) * (p[0] - a[0]);
-    if (Math.abs(cross) < TOL) continue; // on the edge
+    // the cross product over the edge length is the distance to that edge
+    if (Math.abs(cross) / Math.hypot(b[0] - a[0], b[1] - a[1]) < TOL) continue; // on the edge
     const s = Math.sign(cross);
     if (sign === 0) sign = s;
     else if (s !== sign) return false;
@@ -72,7 +79,7 @@ async function readPoints(file, layerNames) {
     const g = o.geometry();
     if (g.constructor.name !== 'Point') continue;
     const layer = idxToName[o.attributes().layerIndex];
-    if (wanted[layer]) wanted[layer].push(g.location);
+    if (wanted[layer]) wanted[layer].push(toPlotter(g.location));
   }
   return wanted;
 }
@@ -83,7 +90,7 @@ for (const w of warnings) console.error('WARN ' + w);
 console.log(`Loaded ${regions.length} hit regions from ${FILE}\n`);
 
 const pts = await readPoints(FILE, [HIT_LAYER, MISS_LAYER]);
-const fmt = (p) => `(${p[0].toFixed(3)}, ${p[1].toFixed(3)})`;
+const fmt = (p) => `(${p[0]}, ${p[1]})`;
 
 let failures = 0;
 

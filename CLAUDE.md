@@ -89,17 +89,30 @@ the areas an object can occupy; every region is one closed curve of exactly one 
 The current file holds 5 regions (2 rectangles + 3 wedge bands) that chain into one closed
 loop; all bands share a `0.875`-wide radial thickness matching the straightaways.
 
+**The model is in inches on a portrait Letter sheet** — its `Page` layer is exactly
+`(0,0)-(8.5,11)` — but nothing downstream sees those units. `extract-hit-regions.mjs` converts
+everything on the way out: 1016 plotter units to the inch, then a 90° CCW rotation (what HP-GL's
+own `RO90` does) to reach the plotter's landscape orientation, then a translation centring the
+sheet on the Letter hard-clip limits of `10300 × 7650` plotter units. Note that is the real
+Letter plotting range, *not* the 4:3 `PLOT_WIDTH × PLOT_HEIGHT` the paint page draws inside.
+The sheet is bigger than the range, so its corners fall outside; every hit region lands inside
+with ~260 units to spare. `toPlotter` / `toPlotterLength` and the limits are exported so
+anything else in the pipeline converts the same way.
+
 - **`extract-hit-regions.mjs`** reads the layer via `rhino3dm.js` (WASM, no Rhino install) and
-  emits concise JSON. It exports `extractRegions(file)` for reuse and prints JSON when run
-  directly; it warns on and skips any geometry that is not a rectangle or wedge band. Snapshot:
+  emits concise JSON **in plotter units**. It exports `extractRegions(file)` for reuse and prints
+  JSON when run directly; it warns on and skips any geometry that is not a rectangle or wedge
+  band, and warns (without skipping) on a region reaching outside the plotting range. Snapshot:
   `track/hit-regions.json`.
   - rectangle → `{ type, center, width, height, angleDeg, corners }` (`corners` is authoritative)
   - wedge band → `{ type, center, innerRadius, outerRadius, startAngleDeg, endAngleDeg, sweepDeg }`
     (angles in degrees, sweep is CCW from `startAngleDeg`)
 - **`test-hit-regions.mjs`** asserts every point on `TEST_POINTS_HIT` falls inside a region and
-  every point on `TEST_POINTS_MISS` falls outside all of them (non-zero exit on failure). The
-  hit-test logic: convex-quad side test for rectangles; radius-in-`[inner,outer]` plus
-  CCW-sweep angle test for wedge bands.
+  every point on `TEST_POINTS_MISS` falls outside all of them (non-zero exit on failure). It puts
+  the test points through `toPlotter` first, so both sides of the comparison are in plotter units.
+  The hit-test logic: convex-quad side test for rectangles; radius-in-`[inner,outer]` plus
+  CCW-sweep angle test for wedge bands. Tolerance is one plotter unit, since the extractor rounds
+  to whole units.
 
 `track/pdf2hpgl.sh` is an unrelated utility that converts PDF/PS/EPS linework to HP-GL
 (ghostscript → pstoedit → affine fit/rotate/pen transform).

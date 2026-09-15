@@ -1,6 +1,12 @@
 {
   "source": "track/track.3dm",
   "layer": "HIT_REGIONS",
+  "units": "plotter units (0.025 mm, 1016/in)",
+  "paper": "letter",
+  "plotRange": [
+    10300,
+    7650
+  ],
   "count": 5,
   "summary": {
     "rectangles": 2,
@@ -10,93 +16,93 @@
     {
       "type": "rectangle",
       "center": [
-        3.1563,
-        9.875
+        705,
+        2714
       ],
-      "width": 0.875,
-      "height": 4.5025,
-      "angleDeg": 90,
+      "width": 889,
+      "height": 4575,
+      "angleDeg": 180,
       "corners": [
         [
-          0.905,
-          9.4375
+          1150,
+          426
         ],
         [
-          0.905,
-          10.3125
+          260,
+          426
         ],
         [
-          5.4075,
-          10.3125
+          260,
+          5001
         ],
         [
-          5.4075,
-          9.4375
+          1150,
+          5001
         ]
       ]
     },
     {
       "type": "rectangle",
       "center": [
-        3.1563,
-        1.125
+        9595,
+        2714
       ],
-      "width": 4.5025,
-      "height": 0.875,
-      "angleDeg": 0,
+      "width": 4575,
+      "height": 889,
+      "angleDeg": 90,
       "corners": [
         [
-          0.905,
-          1.5625
+          9151,
+          426
         ],
         [
-          5.4075,
-          1.5625
+          9151,
+          5001
         ],
         [
-          5.4075,
-          0.6875
+          10040,
+          5001
         ],
         [
-          0.905,
-          0.6875
+          10040,
+          426
         ]
       ]
     },
     {
       "type": "wedge_band",
       "center": [
-        5.4075,
-        2.875
+        7817,
+        5001
       ],
-      "innerRadius": 1.3125,
-      "outerRadius": 2.1875,
-      "startAngleDeg": -90,
-      "endAngleDeg": 131.4096,
+      "innerRadius": 1334,
+      "outerRadius": 2223,
+      "startAngleDeg": 0,
+      "endAngleDeg": -138.5904,
       "sweepDeg": 221.4096
     },
     {
       "type": "wedge_band",
       "center": [
-        3.0925,
-        5.5
+        5150,
+        2649
       ],
-      "innerRadius": 1.3125,
-      "outerRadius": 2.1875,
-      "startAngleDeg": 48.5904,
-      "endAngleDeg": -48.5904,
+      "innerRadius": 1333,
+      "outerRadius": 2223,
+      "startAngleDeg": 138.5904,
+      "endAngleDeg": 41.4096,
       "sweepDeg": 262.8192
     },
     {
       "type": "wedge_band",
       "center": [
-        5.4075,
-        8.125
+        2483,
+        5001
       ],
-      "innerRadius": 1.3125,
-      "outerRadius": 2.1875,
-      "startAngleDeg": -131.4096,
-      "endAngleDeg": 90,
+      "innerRadius": 1334,
+      "outerRadius": 2223,
+      "startAngleDeg": -41.4096,
+      "endAngleDeg": 180,
       "sweepDeg": 221.4096
     }
   ]
