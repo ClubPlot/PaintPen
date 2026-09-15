@@ -10,6 +10,7 @@ const status = document.querySelector<HTMLSpanElement>("#status")!;
 const pads = document.querySelector<HTMLParagraphElement>("#pads")!;
 const state = document.querySelector<HTMLPreElement>("#state")!;
 const log = document.querySelector<HTMLPreElement>("#log")!;
+const drawTrackButton = document.querySelector<HTMLButtonElement>("#draw-track")!;
 
 urlInput.value = DEFAULT_URL;
 
@@ -294,9 +295,12 @@ window.addEventListener("gamepadconnected", () => {
 });
 
 window.addEventListener("gamepadconnected", async () => {
-  drawTrack(trackHPGL)
   start(gameState.lap,startPoint())
   requestAnimationFrame(plot);
+});
+
+drawTrackButton.addEventListener("click", () => {
+  drawTrack(trackHPGL)
 });
 
 pads.textContent = "Press a button on a controller to connect it.";
