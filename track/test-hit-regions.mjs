@@ -70,7 +70,11 @@ function inWedgeBand(p, r) {
   const ang = (Math.atan2(dy, dx) * 180) / Math.PI;
   // is `ang` within the CCW sweep starting at startAngleDeg?
   const rel = (((ang - r.startAngleDeg) % 360) + 360) % 360;
-  return rel <= r.sweepDeg + TOL || rel >= 360 - TOL;
+  // TOL is a distance, so the slack at a radial edge is the angle it
+  // subtends at the point's own radius — a flat degree of it would be 39
+  // units out at the outer radius and a fraction of one at the inner.
+  const angTol = ((TOL / rad) * 180) / Math.PI;
+  return rel <= r.sweepDeg + angTol || rel >= 360 - angTol;
 }
 
 const inside = (p, r) => (r.type === 'rectangle' ? inRectangle(p, r) : inWedgeBand(p, r));
