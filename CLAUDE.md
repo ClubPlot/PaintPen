@@ -86,22 +86,25 @@ stops at the paper edge. This file is the most experimental / in-flux part of th
 ## Track / Rhino hit regions (`track/`)
 
 `track/track.3dm` is a Rhino model of a race track. The **`HIT_REGIONS`** layer defines the
-areas an object can occupy; every region is one curve of exactly one of three shapes:
+areas an object can occupy. Every region is an **area** — one closed curve of exactly one of
+two shapes:
 
 - **Rectangle** — a closed `PolylineCurve` with 4 corners (the straightaways).
 - **Wedge band** — a closed `PolyCurve` of two concentric arcs (inner + outer radius) joined by
   two radial lines, i.e. an annular sector (the turns). The turns are reflex — the model's arcs
   subtend 221° and 263°, not 180°.
-- **Line** — an open `LineCurve`: a gate to cross rather than an area (the start line).
+
+The model also has the start line drawn on `HIT_REGIONS/START` as an open `LineCurve`. It is a
+gate rather than an area, so it is **not** a region: the extractor skips it with a warning.
 
 `HIT_REGIONS` is divided into **sublayers that say what each region means** — currently
 `START`, `TRACK` and `FINISH`. Every extracted region is tagged with its sublayer as `group`,
 and `groups` maps each sublayer to its region indices. Sublayers may nest: `group` is always
 the *top-level* sublayer, and a region deeper than that also carries the full path in `layer`.
 
-The current file holds 8 regions — `TRACK` has the closed loop (2 rectangles + 3 wedge bands),
-`START` a square plus the start line on its boundary with the loop, and `FINISH` a square. All
-bands share a `0.875`-wide radial thickness matching the straightaways.
+The current file holds 7 regions — `TRACK` has the closed loop (2 rectangles + 3 wedge bands),
+`START` a square, and `FINISH` a square. All bands share a `0.875`-wide radial thickness
+matching the straightaways.
 
 Separately, the top-level **`START_POINT`** layer holds a single `Point`: where a car begins the
 lap. It is a position rather than an area, so it sits outside `HIT_REGIONS` and comes back as
@@ -126,23 +129,24 @@ anything else in the pipeline converts the same way.
   the layer is missing, holds no `Point`, or holds something else; extra points warn and the
   first wins. Whether it lands inside a region is checked by the test, not here.
   Each region leads with `group` (its sublayer), then:
-  - rectangle → `{ type, center, width, height, angleDeg, corners }` (`corners` is authoritative)
+  - rectangle → `{ type, corners }` — the 4 corners, in the order drawn. That is the whole
+    description; a centre, side lengths or an angle are derived at the point of use rather
+    than emitted, so there is only ever one rounding of the shape
   - wedge band → `{ type, center, innerRadius, outerRadius, startAngleDeg, endAngleDeg, sweepDeg }`
     (angles in degrees, sweep is CCW from `startAngleDeg`)
-  - line → `{ type, from, to, length }` (endpoint order is the one drawn, so it gives a direction)
 - **`track/test-hit-regions.mjs`** (`yarn test`) scatters random points over the whole plotting range, classifies
   each by the group of the region containing it (`START` / `TRACK` / `FINISH`, or off track),
   and renders regions + classified points to **`track/hit-regions-test.svg`** to be checked by
   eye. The model's old `TEST_POINTS_*` layers are gone, so there are no fixtures to compare
   against; instead the run fails if any point lands in two *different* groups (the groups would
-  overlap, making the answer ambiguous), if no area regions were found at all, or if the
+  overlap, making the answer ambiguous), if no regions were found at all, or if the
   `startPoint` exists but falls outside every region. The start point is drawn as a crosshair
   and its group reported (currently `START`). Points come from a seeded PRNG, so a given seed
   always draws the same picture.
   Flags: `--points=N` `--seed=S` `--out=file.svg`.
   The hit-test logic: convex-quad side test for rectangles; radius-in-`[inner,outer]` plus
-  CCW-sweep angle test for wedge bands. `line` regions are gates, not areas, so they sit out the
-  test. Tolerance is one plotter unit, since the extractor rounds to whole units.
+  CCW-sweep angle test for wedge bands. Tolerance is one plotter unit, since the extractor
+  rounds to whole units.
   Sanity check: at `--points=400000` the measured group shares match the regions' analytic areas
   (TRACK 33.07% vs 33.04%, START/FINISH ~0.99% vs 1.003%).
 

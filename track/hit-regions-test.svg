@@ -2,7 +2,6 @@
 <rect x="0" y="0" width="10300" height="7650" fill="#fdfdfb" stroke="#ccc" stroke-width="18"/>
 <!-- HP-GL's origin is lower-left with Y up; SVG's is upper-left with Y down. -->
 <g transform="translate(0,7650) scale(1,-1)">
-<line x1="261" y1="1315" x2="1150" y2="1315" stroke="#111" stroke-width="40" stroke-dasharray="80 50"/>
 <path d="M 10040,5001 A 2223,2223 0 1 1 6149.75,3530.62 L 6816.5,4118.64 A 1334,1334 0 1 0 9151,5001 Z" fill="#2f6fd0" fill-opacity="0.15" stroke="#2f6fd0" stroke-width="14"/>
 <path d="M 3482.75,4119.38 A 2223,2223 0 1 1 6817.25,4119.38 L 6149.75,3530.7 A 1333,1333 0 1 0 4150.25,3530.7 Z" fill="#2f6fd0" fill-opacity="0.15" stroke="#2f6fd0" stroke-width="14"/>
 <path d="M 4150.25,3530.62 A 2223,2223 0 1 1 260,5001 L 1149,5001 A 1334,1334 0 1 0 3483.5,4118.64 Z" fill="#2f6fd0" fill-opacity="0.15" stroke="#2f6fd0" stroke-width="14"/>

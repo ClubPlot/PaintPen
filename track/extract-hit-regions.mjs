@@ -1,11 +1,14 @@
 // Extract HIT_REGIONS geometry from a .3dm file into concise JSON descriptions,
 // already converted to HP-GL plotter units and the plotter's coordinate system.
 //
-// Every hit region is one of:
-//   - a rectangle          (a closed PolylineCurve with 4 corners),
+// Every hit region is an area, and is one of:
+//   - a rectangle          (a closed PolylineCurve with 4 corners), or
 //   - a concentric band of a wedge / annular sector
-//                          (a closed PolyCurve of two arcs + two radial lines), or
-//   - a line               (an open LineCurve — a gate to cross, not an area).
+//                          (a closed PolyCurve of two arcs + two radial lines).
+//
+// HIT_REGIONS may still carry linework that is not an area — the start line is
+// drawn on it as an open curve. Only areas are regions, so anything else is
+// skipped with a warning.
 //
 // HIT_REGIONS is subdivided into sublayers (START, TRACK, FINISH) that say what
 // each region *means*. Every region is tagged with the sublayer it came from as
@@ -98,6 +101,11 @@ const toPlotterAngle = (degrees) => norm180(degrees + ROTATION_DEG);
 const outsidePlotRange = ([x, y]) =>
   x < 0 || x > LETTER_PLOT_WIDTH || y < 0 || y > LETTER_PLOT_HEIGHT;
 
+// The corners are the whole description. A centre, side lengths and an angle
+// can all be derived from them, but emitting them too gave two descriptions of
+// one rectangle that disagreed: each was rounded from model inches on its own,
+// so the sides came out up to a unit off the corners they were meant to match.
+// Deriving at the point of use keeps that impossible.
 function describeRectangle(curve) {
   // closed polyline: last point repeats the first, so 4 unique corners
   const n = curve.pointCount;
@@ -106,21 +114,9 @@ function describeRectangle(curve) {
     const p = curve.point(k);
     pts.push([p[0], p[1]]);
   }
-  const corners = pts.slice(0, n - 1); // drop the closing duplicate
-  const cx = corners.reduce((s, p) => s + p[0], 0) / corners.length;
-  const cy = corners.reduce((s, p) => s + p[1], 0) / corners.length;
-  // width = length of edge 0->1, height = length of edge 1->2
-  const dist = (a, b) => Math.hypot(b[0] - a[0], b[1] - a[1]);
-  const w = dist(corners[0], corners[1]);
-  const h = dist(corners[1], corners[2]);
-  const angle = deg(Math.atan2(corners[1][1] - corners[0][1], corners[1][0] - corners[0][0]));
   return {
     type: 'rectangle',
-    center: toPlotter([cx, cy]),
-    width: toPlotterLength(w),
-    height: toPlotterLength(h),
-    angleDeg: round(toPlotterAngle(angle)),
-    corners: corners.map(toPlotter),
+    corners: pts.slice(0, n - 1).map(toPlotter), // drop the closing duplicate
   };
 }
 
@@ -170,26 +166,11 @@ function describeWedgeBand(curve) {
   };
 }
 
-// An open LineCurve is a gate rather than an area — the start/finish line. The
-// endpoint order is the one drawn in the model, so a consumer can take the
-// crossing direction from it.
-function describeLine(curve) {
-  const { from, to } = curve.line;
-  return {
-    type: 'line',
-    from: toPlotter(from),
-    to: toPlotter(to),
-    length: toPlotterLength(Math.hypot(to[0] - from[0], to[1] - from[1])),
-  };
-}
-
 // The points a region can reach, for the plotting-range check: a rectangle's
-// corners, a line's endpoints, and for a wedge band the ends of its two arcs
-// plus any cardinal direction its sweep passes through, where the outer arc
-// touches an extreme.
+// corners, and for a wedge band the ends of its two arcs plus any cardinal
+// direction its sweep passes through, where the outer arc touches an extreme.
 function extremePoints(r) {
   if (r.type === 'rectangle') return r.corners;
-  if (r.type === 'line') return [r.from, r.to];
   const at = (a, radius) => [
     r.center[0] + radius * Math.cos((a * Math.PI) / 180),
     r.center[1] + radius * Math.sin((a * Math.PI) / 180),
@@ -317,15 +298,13 @@ export async function extractRegions(file) {
       region = describeRectangle(geo);
     } else if (kind === 'PolyCurve' && geo.isClosed) {
       region = describeWedgeBand(geo);
-    } else if (kind === 'LineCurve') {
-      region = describeLine(geo);
     }
 
     const where = label.path ? `${LAYER}/${label.path}` : LAYER;
     if (!region) {
       warnings.push(
-        `object #${i} on ${where}: unrecognized ${kind} ` +
-          `(not a rectangle, wedge band or line) — skipped`,
+        `object #${i} on ${where}: ${kind} is not an area ` +
+          `(not a rectangle or wedge band) — skipped`,
       );
       continue;
     }
@@ -365,7 +344,6 @@ export async function extractRegions(file) {
     summary: {
       rectangles: countOf('rectangle'),
       wedge_bands: countOf('wedge_band'),
-      lines: countOf('line'),
     },
     groups,
     regions,

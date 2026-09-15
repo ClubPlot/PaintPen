@@ -73,9 +73,6 @@ function inWedgeBand(p, r) {
   return rel <= r.sweepDeg + TOL || rel >= 360 - TOL;
 }
 
-// Only areas can contain a point; a `line` region is a gate to cross, so it is
-// not part of the inside/outside test.
-const isArea = (r) => r.type === 'rectangle' || r.type === 'wedge_band';
 const inside = (p, r) => (r.type === 'rectangle' ? inRectangle(p, r) : inWedgeBand(p, r));
 
 // which regions (by index) contain this point? Indices are into the full
@@ -83,7 +80,7 @@ const inside = (p, r) => (r.type === 'rectangle' ? inRectangle(p, r) : inWedgeBa
 function hittingRegions(p, regions) {
   const hits = [];
   regions.forEach((r, i) => {
-    if (isArea(r) && inside(p, r)) hits.push(i);
+    if (inside(p, r)) hits.push(i);
   });
   return hits;
 }
@@ -104,7 +101,6 @@ function rng(seed) {
 const { regions, groups, startPoint, warnings } = await extractRegions(FILE);
 for (const w of warnings) console.error('WARN ' + w);
 
-const areas = regions.filter(isArea);
 console.log(`Loaded ${regions.length} hit regions from ${name(FILE)}`);
 for (const [group, idx] of Object.entries(groups)) {
   console.log(`  ${group}: ${idx.map((i) => regions[i].type).join(', ')}`);
@@ -159,25 +155,18 @@ function regionShape(r) {
   if (r.type === 'rectangle') {
     return `<polygon points="${r.corners.map((c) => `${c[0]},${c[1]}`).join(' ')}" ${skin}/>`;
   }
-  if (r.type === 'wedge_band') {
-    // endAngleDeg is normalized to (-180,180], so walk the sweep from the start.
-    const end = r.startAngleDeg + r.sweepDeg;
-    const [ox, oy] = polar(r.center, r.outerRadius, r.startAngleDeg);
-    const [ex, ey] = polar(r.center, r.outerRadius, end);
-    const [ix, iy] = polar(r.center, r.innerRadius, end);
-    const [sx, sy] = polar(r.center, r.innerRadius, r.startAngleDeg);
-    // Inside the flipped group the axes are the plotter's, so sweep-flag 1 is CCW.
-    const big = r.sweepDeg > 180 ? 1 : 0;
-    const d =
-      `M ${n2(ox)},${n2(oy)} A ${r.outerRadius},${r.outerRadius} 0 ${big} 1 ${n2(ex)},${n2(ey)} ` +
-      `L ${n2(ix)},${n2(iy)} A ${r.innerRadius},${r.innerRadius} 0 ${big} 0 ${n2(sx)},${n2(sy)} Z`;
-    return `<path d="${d}" ${skin}/>`;
-  }
-  // a gate: heavy and dashed, so it reads as a line rather than a region edge
-  return (
-    `<line x1="${r.from[0]}" y1="${r.from[1]}" x2="${r.to[0]}" y2="${r.to[1]}" ` +
-    `stroke="#111" stroke-width="40" stroke-dasharray="80 50"/>`
-  );
+  // endAngleDeg is normalized to (-180,180], so walk the sweep from the start.
+  const end = r.startAngleDeg + r.sweepDeg;
+  const [ox, oy] = polar(r.center, r.outerRadius, r.startAngleDeg);
+  const [ex, ey] = polar(r.center, r.outerRadius, end);
+  const [ix, iy] = polar(r.center, r.innerRadius, end);
+  const [sx, sy] = polar(r.center, r.innerRadius, r.startAngleDeg);
+  // Inside the flipped group the axes are the plotter's, so sweep-flag 1 is CCW.
+  const big = r.sweepDeg > 180 ? 1 : 0;
+  const d =
+    `M ${n2(ox)},${n2(oy)} A ${r.outerRadius},${r.outerRadius} 0 ${big} 1 ${n2(ex)},${n2(ey)} ` +
+    `L ${n2(ix)},${n2(iy)} A ${r.innerRadius},${r.innerRadius} 0 ${big} 0 ${n2(sx)},${n2(sy)} Z`;
+  return `<path d="${d}" ${skin}/>`;
 }
 
 // Off-track points are the majority; draw them first, smaller and paler, so the
@@ -238,11 +227,11 @@ writeFileSync(OUT, svg);
 console.log(`\nWrote ${name(OUT)}`);
 
 // ---- summary ----------------------------------------------------------------
-// With no areas there is nothing to classify and every point trivially lands
+// With no regions there is nothing to classify and every point trivially lands
 // off track, so say so and fail rather than report a green run on nothing.
 console.log(`\n${'='.repeat(40)}`);
-if (areas.length === 0) {
-  console.log('FAIL — no area regions found on HIT_REGIONS; nothing to test against');
+if (regions.length === 0) {
+  console.log('FAIL — no regions found on HIT_REGIONS; nothing to test against');
   process.exitCode = 1;
 } else if (startPoint && startGroup === OFF) {
   console.log(`FAIL — start point (${startPoint}) lies outside every hit region`);
