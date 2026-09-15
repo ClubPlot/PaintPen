@@ -1,5 +1,7 @@
 import "./style.css";
-// import {track} from "../track/trackhpgl.js"
+import {trackHPGL} from "../track/trackhpgl.js"
+import { startPoint, onTrack, finished } from "./track.ts";
+import type { Point } from "./plot.ts";
 import { createConnection, DEFAULT_URL, type Connection } from "./plot.ts";
 
 const urlInput = document.querySelector<HTMLInputElement>("#url")!;
@@ -201,8 +203,7 @@ export async function plotToEnd([vx, vy]: [vx: number, vy: number], dt: number =
   }
 }
 const reach = 10;
-let startPoint = [469,948]
-let currentPoint = startPoint
+let currentPoint = startPoint()
 let lastTime = 0;
 const minInterval = 1000 / 10;
 
@@ -217,67 +218,73 @@ function setPen(pen: number) {
 }
 
 // Start function to run once the pen reaches the finish line
-function start(lap: number, point: Array<number>) {
-  setPen(lap + 3)
-  connection?.write(`PA ${point[0],point[1]};PD;`);
-}
-// game loop
-function gameLoop(laps: number, track: string, gamepad: Gamepad[]) {
-  drawTrack(track)
-  for (let i = 1; i <= laps; i++) {
-    let finished = false;
-    start(i, startPoint)
-    while(!finished) {
-    }
-  }
+function start(lap: number, point: Point) {
+  setPen(lap + 4)
+  connection?.write(`IN; SP${lap + 3};PA ${point.x}, ${point.y};PD;`);
 }
 
-let gameState = {currentPoint: currentPoint, finished: false, startTime: lastTime}
+const gameState = { currentPoint: currentPoint, finished: false, startTime: lastTime, lap: 0 }
 
 async function plot(currentTime: number) {
-  requestAnimationFrame(plot);
 
-  const connected = navigator
-    .getGamepads()
-    .filter((p): p is Gamepad => p !== null);
+  if (!gameState.finished) {
+    requestAnimationFrame(plot);
 
+    const connected = navigator
+      .getGamepads()
+      .filter((p): p is Gamepad => p !== null);
 
-  if (connected.length > 0 && connection !== null) {
-    const deltaTime = currentTime - lastTime;
+    if (connected.length > 0 && connection !== null) {
+      const deltaTime = currentTime - lastTime;
 
-    if (deltaTime >= minInterval) {
-      lastTime = currentTime - (deltaTime % minInterval);
+      if (deltaTime >= minInterval) {
+        lastTime = currentTime - (deltaTime % minInterval);
 
+        
+        const pad = connected[0];
 
-      const pad = connected[0];
+        const [y, x] = pad.axes;
+        const speed = Math.floor((39 * pad.buttons[7].value) + 1);
 
-      const [y, x] = pad.axes;
-      const speed = Math.floor((39 * pad.buttons[7].value) + 1);
+        const dx = Math.trunc(x * reach * speed);
+        const dy = Math.trunc(y * reach * speed);
 
-      const dx = Math.trunc(x * reach * speed);
-      const dy = Math.trunc(y * reach * speed);
-
-      if (Math.abs(dx) > 0 || Math.abs(dy) > 0) {
-        // let current = currentPoint
-        // let nextPoint = [currentPoint[0] + dx, currentPoint[1] + dy]
-        // If out of bounds, drop cmd else continue
-        // if (inBounds) {
-          // pass currentPoint command
-        // } else if (at finish line) {
-            // start(lap)
-        //  else{
-          // rumble
-          // }
+        if (Math.abs(dx) > 0 || Math.abs(dy) > 0) {
+          const nextPoint: Point = { x: gameState.currentPoint.x + dx, y: gameState.currentPoint.y + dy }
+          if (onTrack(nextPoint)) {
+            if (connected && connected[0].vibrationActuator) {
+              connected[0].vibrationActuator.playEffect("dual-rumble", {
+                startDelay: 0,      // Delay in milliseconds before rumbling
+                duration: 500,      // Duration of the rumble in milliseconds
+                weakMagnitude: 0.5, // High-frequency motor intensity (0.0 to 1.0)
+                strongMagnitude: 1.0 // Low-frequency motor intensity (0.0 to 1.0)
+              });
+            }
+            connection.write(`VS ${speed}; PR ${dx},${dy};`)
+          } else if (finished(nextPoint)) {
+            gameState.lap = gameState.lap + 1
+            if (gameState.lap === 4) {
+              gameState.finished = true;
+            } else {
+              start(gameState.lap, currentPoint)
+            }
+          } else {
+            if (connected && connected[0].vibrationActuator) {
+              connected[0].vibrationActuator.playEffect("dual-rumble", {
+                startDelay: 0,      // Delay in milliseconds before rumbling
+                duration: 500,      // Duration of the rumble in milliseconds
+                weakMagnitude: 0.5, // High-frequency motor intensity (0.0 to 1.0)
+                strongMagnitude: 1.0 // Low-frequency motor intensity (0.0 to 1.0)
+              });
+}
+          }
         }
-        const cmd = `VS ${speed}; PR ${dx},${dy};`
-
-        connection.write(cmd);
-        // Not sure reading after OA; actually works.
-        // await connection.read();
-
       }
     }
+  } else {
+    // die 
   }
+}
 
 window.addEventListener("gamepadconnected", () => {
   /* A second pad joining must not start a second loop. */
@@ -287,6 +294,8 @@ window.addEventListener("gamepadconnected", () => {
 });
 
 window.addEventListener("gamepadconnected", async () => {
+  drawTrack(trackHPGL)
+  start(gameState.lap,startPoint())
   requestAnimationFrame(plot);
 });
 
