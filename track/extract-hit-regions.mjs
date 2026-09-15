@@ -1,17 +1,37 @@
 // Extract HIT_REGIONS geometry from a .3dm file into concise JSON descriptions,
 // already converted to HP-GL plotter units and the plotter's coordinate system.
 //
-// Every hit region is either:
-//   - a rectangle          (a closed PolylineCurve with 4 corners), or
+// Every hit region is one of:
+//   - a rectangle          (a closed PolylineCurve with 4 corners),
 //   - a concentric band of a wedge / annular sector
-//                          (a closed PolyCurve of two arcs + two radial lines).
+//                          (a closed PolyCurve of two arcs + two radial lines), or
+//   - a line               (an open LineCurve — a gate to cross, not an area).
 //
-// Usage: node extract-hit-regions.mjs [path/to/file.3dm]
+// HIT_REGIONS is subdivided into sublayers (START, TRACK, FINISH) that say what
+// each region *means*. Every region is tagged with the sublayer it came from as
+// its `group`, and the regions are also indexed by group in `groups`. Sublayers
+// may nest; a region's `group` is always the top-level sublayer under
+// HIT_REGIONS, with the full path kept in `layer` when it sits deeper.
+//
+// Usage: node track/extract-hit-regions.mjs [path/to/file.3dm]   (or: yarn regions)
 
 import rhino3dm from 'rhino3dm';
 import { readFileSync } from 'node:fs';
+import { join, relative, resolve } from 'node:path';
 
 const LAYER = 'HIT_REGIONS';
+// Where a car starts the lap: a single Point on its own top-level layer. It is
+// a position rather than an area, so it lives outside HIT_REGIONS and comes
+// back as its own field rather than as a region.
+const START_POINT_LAYER = 'START_POINT';
+
+// This script lives next to the model it reads, so paths are resolved against
+// its own directory rather than the caller's — `yarn regions` works the same
+// from anywhere. `sourceName` keeps the emitted `source` repo-relative, so the
+// committed JSON does not record whose machine produced it.
+export const TRACK_DIR = import.meta.dirname;
+export const DEFAULT_MODEL = join(TRACK_DIR, 'track.3dm');
+const sourceName = (file) => relative(join(TRACK_DIR, '..'), resolve(file));
 const round = (n, d = 4) => +n.toFixed(d);
 const TOL = 1e-3;
 
@@ -150,11 +170,26 @@ function describeWedgeBand(curve) {
   };
 }
 
+// An open LineCurve is a gate rather than an area — the start/finish line. The
+// endpoint order is the one drawn in the model, so a consumer can take the
+// crossing direction from it.
+function describeLine(curve) {
+  const { from, to } = curve.line;
+  return {
+    type: 'line',
+    from: toPlotter(from),
+    to: toPlotter(to),
+    length: toPlotterLength(Math.hypot(to[0] - from[0], to[1] - from[1])),
+  };
+}
+
 // The points a region can reach, for the plotting-range check: a rectangle's
-// corners, and for a wedge band the ends of its two arcs plus any cardinal
-// direction its sweep passes through, where the outer arc touches an extreme.
+// corners, a line's endpoints, and for a wedge band the ends of its two arcs
+// plus any cardinal direction its sweep passes through, where the outer arc
+// touches an extreme.
 function extremePoints(r) {
   if (r.type === 'rectangle') return r.corners;
+  if (r.type === 'line') return [r.from, r.to];
   const at = (a, radius) => [
     r.center[0] + radius * Math.cos((a * Math.PI) / 180),
     r.center[1] + radius * Math.sin((a * Math.PI) / 180),
@@ -169,19 +204,101 @@ function extremePoints(r) {
   return pts;
 }
 
+// ---- layers -----------------------------------------------------------------
+// Map every layer at or under HIT_REGIONS to how we label the regions on it:
+//   group — the top-level sublayer under HIT_REGIONS (START / TRACK / FINISH),
+//           or null for anything sitting directly on HIT_REGIONS itself.
+//   path  — the sublayer path below HIT_REGIONS, e.g. "TRACK" or "TRACK/TURNS".
+// Returns a Map keyed by layer index, so an object is labelled by a lookup.
+function hitRegionLayers(doc, file) {
+  const layers = doc.layers();
+  const all = [];
+  for (let i = 0; i < layers.count; i++) {
+    const L = layers.get(i);
+    all.push({ index: L.index, id: L.id, parent: L.parentLayerId, name: L.name });
+  }
+
+  const byId = new Map(all.map((L) => [L.id, L]));
+  const named = all.filter((L) => L.name === LAYER);
+  // Prefer a top-level HIT_REGIONS, so a sublayer of that name cannot shadow it.
+  const root = named.find((L) => !byId.has(L.parent)) ?? named[0];
+  if (!root) throw new Error(`Layer "${LAYER}" not found in ${file}`);
+
+  const labels = new Map([[root.index, { group: null, path: '' }]]);
+
+  // Walk each layer up to the root, collecting the names in between. The depth
+  // guard is only there so a corrupt file with a parent cycle cannot hang us.
+  for (const L of all) {
+    const chain = [];
+    let cur = L;
+    for (let depth = 0; cur && cur.id !== root.id && depth < all.length; depth++) {
+      chain.unshift(cur.name);
+      cur = byId.get(cur.parent);
+    }
+    if (!cur || cur.id !== root.id || chain.length === 0) continue; // not under HIT_REGIONS
+    labels.set(L.index, { group: chain[0], path: chain.join('/') });
+  }
+  return labels;
+}
+
+// ---- start point ------------------------------------------------------------
+// The one Point on START_POINT, in plotter units, or null if the model has
+// none. Whether it lands inside a hit region is not checked here — that is a
+// question about the regions, and the hit-test lives in test-hit-regions.mjs.
+function extractStartPoint(doc, warnings) {
+  const layers = doc.layers();
+  const onLayer = new Set();
+  for (let i = 0; i < layers.count; i++) {
+    const L = layers.get(i);
+    if (L.name === START_POINT_LAYER) onLayer.add(L.index);
+  }
+  if (onLayer.size === 0) {
+    warnings.push(`no "${START_POINT_LAYER}" layer — startPoint is null`);
+    return null;
+  }
+
+  const objs = doc.objects();
+  const found = [];
+  for (let i = 0; i < objs.count; i++) {
+    const o = objs.get(i);
+    if (!onLayer.has(o.attributes().layerIndex)) continue;
+    const geo = o.geometry();
+    if (geo.constructor.name !== 'Point') {
+      warnings.push(
+        `object #${i} on ${START_POINT_LAYER}: expected a Point, ` +
+          `got ${geo.constructor.name} — skipped`,
+      );
+      continue;
+    }
+    found.push(toPlotter(geo.location));
+  }
+
+  if (found.length === 0) {
+    warnings.push(`no Point on "${START_POINT_LAYER}" — startPoint is null`);
+    return null;
+  }
+  if (found.length > 1) {
+    warnings.push(`${found.length} points on ${START_POINT_LAYER} — using the first`);
+  }
+  const point = found[0];
+  if (outsidePlotRange(point)) {
+    warnings.push(
+      `${START_POINT_LAYER} at (${point}) is outside the ` +
+        `${LETTER_PLOT_WIDTH} x ${LETTER_PLOT_HEIGHT} Letter plotting range`,
+    );
+  }
+  return point;
+}
+
 // ---- extraction -------------------------------------------------------------
-// Returns { source, layer, units, paper, plotRange, count, summary, regions,
-// warnings } for a .3dm file, with all geometry in plotter units.
+// Returns { source, layer, units, paper, plotRange, startPoint, count, summary,
+// groups, regions, warnings } for a .3dm file, all geometry in plotter units.
+// Each region carries the `group` (sublayer) it was found on.
 export async function extractRegions(file) {
   const rhino = await rhino3dm();
   const doc = rhino.File3dm.fromByteArray(new Uint8Array(readFileSync(file)));
 
-  const layers = doc.layers();
-  let layerIndex = -1;
-  for (let i = 0; i < layers.count; i++) {
-    if (layers.get(i).name === LAYER) layerIndex = layers.get(i).index;
-  }
-  if (layerIndex === -1) throw new Error(`Layer "${LAYER}" not found in ${file}`);
+  const labels = hitRegionLayers(doc, file);
 
   const objs = doc.objects();
   const regions = [];
@@ -189,7 +306,8 @@ export async function extractRegions(file) {
 
   for (let i = 0; i < objs.count; i++) {
     const o = objs.get(i);
-    if (o.attributes().layerIndex !== layerIndex) continue;
+    const label = labels.get(o.attributes().layerIndex);
+    if (!label) continue;
 
     const geo = o.geometry();
     const kind = geo.constructor.name;
@@ -199,34 +317,57 @@ export async function extractRegions(file) {
       region = describeRectangle(geo);
     } else if (kind === 'PolyCurve' && geo.isClosed) {
       region = describeWedgeBand(geo);
+    } else if (kind === 'LineCurve') {
+      region = describeLine(geo);
     }
 
+    const where = label.path ? `${LAYER}/${label.path}` : LAYER;
     if (!region) {
-      warnings.push(`object #${i}: unrecognized ${kind} (not a rectangle or wedge band) — skipped`);
+      warnings.push(
+        `object #${i} on ${where}: unrecognized ${kind} ` +
+          `(not a rectangle, wedge band or line) — skipped`,
+      );
       continue;
     }
 
-    regions.push(region);
+    // Label first, so `group` leads each region in the emitted JSON.
+    regions.push({
+      group: label.group,
+      ...(label.path && label.path !== label.group ? { layer: label.path } : {}),
+      ...region,
+    });
     if (extremePoints(region).some(outsidePlotRange)) {
       warnings.push(
-        `object #${i}: ${region.type} reaches outside the ` +
+        `object #${i} on ${where}: ${region.type} reaches outside the ` +
           `${LETTER_PLOT_WIDTH} x ${LETTER_PLOT_HEIGHT} Letter plotting range`,
       );
     }
   }
 
+  // Region indices per group, in the order they were found.
+  const groups = {};
+  regions.forEach((r, i) => {
+    const key = r.group ?? LAYER;
+    (groups[key] ??= []).push(i);
+  });
+
+  const countOf = (type) => regions.filter((r) => r.type === type).length;
+
   return {
-    source: file,
+    source: sourceName(file),
     layer: LAYER,
     // Already converted: see "model space -> plotter space" above.
     units: `plotter units (0.025 mm, ${PLOTTER_UNITS_PER_INCH}/in)`,
     paper: 'letter',
     plotRange: [LETTER_PLOT_WIDTH, LETTER_PLOT_HEIGHT],
+    startPoint: extractStartPoint(doc, warnings),
     count: regions.length,
     summary: {
-      rectangles: regions.filter((r) => r.type === 'rectangle').length,
-      wedge_bands: regions.filter((r) => r.type === 'wedge_band').length,
+      rectangles: countOf('rectangle'),
+      wedge_bands: countOf('wedge_band'),
+      lines: countOf('line'),
     },
+    groups,
     regions,
     warnings,
   };
@@ -235,7 +376,7 @@ export async function extractRegions(file) {
 // ---- CLI --------------------------------------------------------------------
 // Run the extraction and print JSON only when invoked directly.
 if (import.meta.url === `file://${process.argv[1]}`) {
-  const out = await extractRegions(process.argv[2] ?? 'track/track.3dm');
+  const out = await extractRegions(process.argv[2] ?? DEFAULT_MODEL);
   for (const w of out.warnings) console.error('WARN ' + w);
   const { warnings, ...json } = out;
   console.log(JSON.stringify(json, null, 2));

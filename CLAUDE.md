@@ -22,13 +22,19 @@ yarn dev              # Vite dev server (both pages)
 yarn build            # tsc type-check (noEmit) + vite build — this is also the "lint"
 yarn preview          # serve the production build
 
-node test-hit-regions.mjs      # the only automated test; validates track hit regions
-node extract-hit-regions.mjs   # regenerate track/hit-regions.json from the .3dm
+yarn test             # the only automated test; classifies random points against the
+                      # track hit regions and draws track/hit-regions-test.svg
+yarn regions          # print the extracted hit regions as JSON
+yarn regions:update   # regenerate the track/hit-regions.json snapshot
 ```
+
+The track tooling lives in `track/` alongside the model it reads, and both scripts resolve
+their default paths against their own directory — so they behave the same however they are
+invoked, whether through yarn or as `node track/<script>.mjs` from anywhere.
 
 There is no separate linter or test runner. `tsc` (via `yarn build`) is the type/lint gate;
 its config is strict (`noUnusedLocals`, `noUnusedParameters`, `erasableSyntaxOnly`). The only
-runtime test is `test-hit-regions.mjs`, run directly with `node`.
+runtime test is `track/test-hit-regions.mjs`, wired up as `yarn test`.
 
 ## Architecture
 
@@ -79,15 +85,27 @@ stops at the paper edge. This file is the most experimental / in-flux part of th
 
 ## Track / Rhino hit regions (`track/`)
 
-`track/track.3dm` is a Rhino model of an oval race track. The **`HIT_REGIONS`** layer defines
-the areas an object can occupy; every region is one closed curve of exactly one of two shapes:
+`track/track.3dm` is a Rhino model of a race track. The **`HIT_REGIONS`** layer defines the
+areas an object can occupy; every region is one curve of exactly one of three shapes:
 
 - **Rectangle** — a closed `PolylineCurve` with 4 corners (the straightaways).
 - **Wedge band** — a closed `PolyCurve` of two concentric arcs (inner + outer radius) joined by
-  two radial lines, i.e. an annular sector (the turns).
+  two radial lines, i.e. an annular sector (the turns). The turns are reflex — the model's arcs
+  subtend 221° and 263°, not 180°.
+- **Line** — an open `LineCurve`: a gate to cross rather than an area (the start line).
 
-The current file holds 5 regions (2 rectangles + 3 wedge bands) that chain into one closed
-loop; all bands share a `0.875`-wide radial thickness matching the straightaways.
+`HIT_REGIONS` is divided into **sublayers that say what each region means** — currently
+`START`, `TRACK` and `FINISH`. Every extracted region is tagged with its sublayer as `group`,
+and `groups` maps each sublayer to its region indices. Sublayers may nest: `group` is always
+the *top-level* sublayer, and a region deeper than that also carries the full path in `layer`.
+
+The current file holds 8 regions — `TRACK` has the closed loop (2 rectangles + 3 wedge bands),
+`START` a square plus the start line on its boundary with the loop, and `FINISH` a square. All
+bands share a `0.875`-wide radial thickness matching the straightaways.
+
+Separately, the top-level **`START_POINT`** layer holds a single `Point`: where a car begins the
+lap. It is a position rather than an area, so it sits outside `HIT_REGIONS` and comes back as
+its own `startPoint` field rather than as a region.
 
 **The model is in inches on a portrait Letter sheet** — its `Page` layer is exactly
 `(0,0)-(8.5,11)` — but nothing downstream sees those units. `extract-hit-regions.mjs` converts
@@ -99,20 +117,34 @@ The sheet is bigger than the range, so its corners fall outside; every hit regio
 with ~260 units to spare. `toPlotter` / `toPlotterLength` and the limits are exported so
 anything else in the pipeline converts the same way.
 
-- **`extract-hit-regions.mjs`** reads the layer via `rhino3dm.js` (WASM, no Rhino install) and
+- **`track/extract-hit-regions.mjs`** (`yarn regions`) reads the layer via `rhino3dm.js` (WASM, no Rhino install) and
   emits concise JSON **in plotter units**. It exports `extractRegions(file)` for reuse and prints
   JSON when run directly; it warns on and skips any geometry that is not a rectangle or wedge
   band, and warns (without skipping) on a region reaching outside the plotting range. Snapshot:
   `track/hit-regions.json`.
+  `startPoint` is the `START_POINT` layer's point in plotter units, or `null` with a warning if
+  the layer is missing, holds no `Point`, or holds something else; extra points warn and the
+  first wins. Whether it lands inside a region is checked by the test, not here.
+  Each region leads with `group` (its sublayer), then:
   - rectangle → `{ type, center, width, height, angleDeg, corners }` (`corners` is authoritative)
   - wedge band → `{ type, center, innerRadius, outerRadius, startAngleDeg, endAngleDeg, sweepDeg }`
     (angles in degrees, sweep is CCW from `startAngleDeg`)
-- **`test-hit-regions.mjs`** asserts every point on `TEST_POINTS_HIT` falls inside a region and
-  every point on `TEST_POINTS_MISS` falls outside all of them (non-zero exit on failure). It puts
-  the test points through `toPlotter` first, so both sides of the comparison are in plotter units.
+  - line → `{ type, from, to, length }` (endpoint order is the one drawn, so it gives a direction)
+- **`track/test-hit-regions.mjs`** (`yarn test`) scatters random points over the whole plotting range, classifies
+  each by the group of the region containing it (`START` / `TRACK` / `FINISH`, or off track),
+  and renders regions + classified points to **`track/hit-regions-test.svg`** to be checked by
+  eye. The model's old `TEST_POINTS_*` layers are gone, so there are no fixtures to compare
+  against; instead the run fails if any point lands in two *different* groups (the groups would
+  overlap, making the answer ambiguous), if no area regions were found at all, or if the
+  `startPoint` exists but falls outside every region. The start point is drawn as a crosshair
+  and its group reported (currently `START`). Points come from a seeded PRNG, so a given seed
+  always draws the same picture.
+  Flags: `--points=N` `--seed=S` `--out=file.svg`.
   The hit-test logic: convex-quad side test for rectangles; radius-in-`[inner,outer]` plus
-  CCW-sweep angle test for wedge bands. Tolerance is one plotter unit, since the extractor rounds
-  to whole units.
+  CCW-sweep angle test for wedge bands. `line` regions are gates, not areas, so they sit out the
+  test. Tolerance is one plotter unit, since the extractor rounds to whole units.
+  Sanity check: at `--points=400000` the measured group shares match the regions' analytic areas
+  (TRACK 33.07% vs 33.04%, START/FINISH ~0.99% vs 1.003%).
 
 `track/pdf2hpgl.sh` is an unrelated utility that converts PDF/PS/EPS linework to HP-GL
 (ghostscript → pstoedit → affine fit/rotate/pen transform).

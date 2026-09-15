@@ -7,69 +7,48 @@
     10300,
     7650
   ],
-  "count": 5,
+  "startPoint": [
+    705,
+    649
+  ],
+  "count": 8,
   "summary": {
-    "rectangles": 2,
-    "wedge_bands": 3
+    "rectangles": 4,
+    "wedge_bands": 3,
+    "lines": 1
+  },
+  "groups": {
+    "START": [
+      0,
+      6
+    ],
+    "TRACK": [
+      1,
+      2,
+      3,
+      4,
+      5
+    ],
+    "FINISH": [
+      7
+    ]
   },
   "regions": [
     {
-      "type": "rectangle",
-      "center": [
-        705,
-        2714
+      "group": "START",
+      "type": "line",
+      "from": [
+        261,
+        1315
       ],
-      "width": 889,
-      "height": 4575,
-      "angleDeg": 180,
-      "corners": [
-        [
-          1150,
-          426
-        ],
-        [
-          260,
-          426
-        ],
-        [
-          260,
-          5001
-        ],
-        [
-          1150,
-          5001
-        ]
-      ]
+      "to": [
+        1150,
+        1315
+      ],
+      "length": 889
     },
     {
-      "type": "rectangle",
-      "center": [
-        9595,
-        2714
-      ],
-      "width": 4575,
-      "height": 889,
-      "angleDeg": 90,
-      "corners": [
-        [
-          9151,
-          426
-        ],
-        [
-          9151,
-          5001
-        ],
-        [
-          10040,
-          5001
-        ],
-        [
-          10040,
-          426
-        ]
-      ]
-    },
-    {
+      "group": "TRACK",
       "type": "wedge_band",
       "center": [
         7817,
@@ -82,6 +61,7 @@
       "sweepDeg": 221.4096
     },
     {
+      "group": "TRACK",
       "type": "wedge_band",
       "center": [
         5150,
@@ -94,6 +74,7 @@
       "sweepDeg": 262.8192
     },
     {
+      "group": "TRACK",
       "type": "wedge_band",
       "center": [
         2483,
@@ -104,6 +85,122 @@
       "startAngleDeg": -41.4096,
       "endAngleDeg": 180,
       "sweepDeg": 221.4096
+    },
+    {
+      "group": "TRACK",
+      "type": "rectangle",
+      "center": [
+        705,
+        3158
+      ],
+      "width": 889,
+      "height": 3686,
+      "angleDeg": 180,
+      "corners": [
+        [
+          1150,
+          1315
+        ],
+        [
+          260,
+          1315
+        ],
+        [
+          260,
+          5001
+        ],
+        [
+          1150,
+          5001
+        ]
+      ]
+    },
+    {
+      "group": "TRACK",
+      "type": "rectangle",
+      "center": [
+        9595,
+        3158
+      ],
+      "width": 3686,
+      "height": 889,
+      "angleDeg": 90,
+      "corners": [
+        [
+          9151,
+          1315
+        ],
+        [
+          9151,
+          5001
+        ],
+        [
+          10040,
+          5001
+        ],
+        [
+          10040,
+          1315
+        ]
+      ]
+    },
+    {
+      "group": "START",
+      "type": "rectangle",
+      "center": [
+        705,
+        871
+      ],
+      "width": 889,
+      "height": 889,
+      "angleDeg": 90,
+      "corners": [
+        [
+          1150,
+          426
+        ],
+        [
+          1150,
+          1315
+        ],
+        [
+          260,
+          1315
+        ],
+        [
+          260,
+          426
+        ]
+      ]
+    },
+    {
+      "group": "FINISH",
+      "type": "rectangle",
+      "center": [
+        9595,
+        871
+      ],
+      "width": 889,
+      "height": 889,
+      "angleDeg": 90,
+      "corners": [
+        [
+          10040,
+          426
+        ],
+        [
+          10040,
+          1315
+        ],
+        [
+          9151,
+          1315
+        ],
+        [
+          9151,
+          426
+        ]
+      ]
     }
   ]
 }

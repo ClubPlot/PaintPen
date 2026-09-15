@@ -6,7 +6,10 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "node track/test-hit-regions.mjs",
+    "regions": "node track/extract-hit-regions.mjs",
+    "regions:update": "node track/extract-hit-regions.mjs > track/hit-regions.json"
   },
   "devDependencies": {
     "typescript": "~6.0.2",
