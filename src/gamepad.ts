@@ -1,4 +1,5 @@
 import "./style.css";
+// import {track} from "../track/trackhpgl.js"
 import { createConnection, DEFAULT_URL, type Connection } from "./plot.ts";
 
 const urlInput = document.querySelector<HTMLInputElement>("#url")!;
@@ -200,11 +201,38 @@ export async function plotToEnd([vx, vy]: [vx: number, vy: number], dt: number =
   }
 }
 const reach = 10;
-let plotting = false;
-let currentPoint = [469,948];
-
+let startPoint = [469,948]
+let currentPoint = startPoint
 let lastTime = 0;
 const minInterval = 1000 / 10;
+
+// Helper function to Draw Track
+function drawTrack(HPGL: string) {
+  connection?.write(HPGL)
+}
+
+// Helper function to set Pen
+function setPen(pen: number) {
+  connection?.write(`SP${pen}`)
+}
+
+// Start function to run once the pen reaches the finish line
+function start(lap: number, point: Array<number>) {
+  setPen(lap + 3)
+  connection?.write(`PA ${point[0],point[1]};PD;`);
+}
+// game loop
+function gameLoop(laps: number, track: string, gamepad: Gamepad[]) {
+  drawTrack(track)
+  for (let i = 1; i <= laps; i++) {
+    let finished = false;
+    start(i, startPoint)
+    while(!finished) {
+    }
+  }
+}
+
+let gameState = {currentPoint: currentPoint, finished: false, startTime: lastTime}
 
 async function plot(currentTime: number) {
   requestAnimationFrame(plot);
@@ -213,17 +241,13 @@ async function plot(currentTime: number) {
     .getGamepads()
     .filter((p): p is Gamepad => p !== null);
 
+
   if (connected.length > 0 && connection !== null) {
     const deltaTime = currentTime - lastTime;
 
     if (deltaTime >= minInterval) {
       lastTime = currentTime - (deltaTime % minInterval);
 
-      if (plotting === false) {
-        // Hardcoded init command; should edit later
-        connection.write(`IN;SP4;PA 469,948;PD;`);
-        plotting = true;
-      }
 
       const pad = connected[0];
 
@@ -237,12 +261,12 @@ async function plot(currentTime: number) {
         // let current = currentPoint
         // let nextPoint = [currentPoint[0] + dx, currentPoint[1] + dy]
         // If out of bounds, drop cmd else continue
-        // if (outofBounds) {
+        // if (inBounds) {
           // pass currentPoint command
         // } else if (at finish line) {
-          // change pen and go back to start
+            // start(lap)
         //  else{
-          // pass nextPoint command
+          // rumble
           // }
         }
         const cmd = `VS ${speed}; PR ${dx},${dy};`
@@ -254,9 +278,6 @@ async function plot(currentTime: number) {
       }
     }
   }
-
-
-}
 
 window.addEventListener("gamepadconnected", () => {
   /* A second pad joining must not start a second loop. */
