@@ -215,15 +215,22 @@ function drawTrack(HPGL: string) {
 
 // Helper function to set Pen
 function setPen(pen: number) {
+  console.log("running switch pen - " + pen)
   connection?.write(`SP${pen}`)
 }
 
 // Start function to run once the pen reaches the finish line
 function start(lap: number, point: Point) {
   setPen(lap + 4)
-  connection?.write(`IN; SP${lap + 3};PA ${point.x}, ${point.y};PD;`);
+  let command = `PU;PA ${point.x}, ${point.y};PD;`
+  console.log("running switch pen - " + command)
+  if (lap === 0) {
+    connection?.write(`IN;` + command);
+  }
+  connection?.write(command);
 }
 
+let laps = [];
 const gameState = { currentPoint: currentPoint, finished: false, startTime: lastTime, lap: 0 }
 
 async function plot(currentTime: number) {
@@ -253,21 +260,16 @@ async function plot(currentTime: number) {
         if (Math.abs(dx) > 0 || Math.abs(dy) > 0) {
           const nextPoint: Point = { x: gameState.currentPoint.x + dx, y: gameState.currentPoint.y + dy }
           if (onTrack(nextPoint)) {
-            if (connected && connected[0].vibrationActuator) {
-              connected[0].vibrationActuator.playEffect("dual-rumble", {
-                startDelay: 0,      // Delay in milliseconds before rumbling
-                duration: 500,      // Duration of the rumble in milliseconds
-                weakMagnitude: 0.5, // High-frequency motor intensity (0.0 to 1.0)
-                strongMagnitude: 1.0 // Low-frequency motor intensity (0.0 to 1.0)
-              });
-            }
+            gameState.currentPoint = nextPoint
             connection.write(`VS ${speed}; PR ${dx},${dy};`)
           } else if (finished(nextPoint)) {
-            gameState.lap = gameState.lap + 1
-            if (gameState.lap === 4) {
+            gameState.lap += 1
+            start(gameState.lap, startPoint())
+            gameState.currentPoint = startPoint()
+            console.log(`Game ${gameState.lap} started`)
+            if (gameState.lap >= 4) {
               gameState.finished = true;
-            } else {
-              start(gameState.lap, currentPoint)
+              gameState.lap = 0;
             }
           } else {
             if (connected && connected[0].vibrationActuator) {
@@ -277,7 +279,7 @@ async function plot(currentTime: number) {
                 weakMagnitude: 0.5, // High-frequency motor intensity (0.0 to 1.0)
                 strongMagnitude: 1.0 // Low-frequency motor intensity (0.0 to 1.0)
               });
-}
+            }
           }
         }
       }

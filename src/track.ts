@@ -88,13 +88,13 @@ export function startPoint(): XY {
 }
 
 export function onTrack({ x, y }: XY): boolean {
-    return inRegions([x, y], trackRegions);
+    return inRegions([x, y], trackRegions) || starting({x, y});
 }
 
 export function finished({ x, y }: XY): boolean {
     return inRegions([x, y], finishRegions);
 }
 
-export function starting({ x, y }: Point): boolean {
+export function starting({ x, y }: XY): boolean {
     return inRegions([x, y], startRegions);
 }
