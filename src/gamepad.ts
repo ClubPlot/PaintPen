@@ -1,6 +1,7 @@
 import "./style.css";
 import { trackHPGL } from "../track/trackhpgl.js"
-import { startPoint, onTrack, finished } from "./track.ts";
+import countdownUrl from "./assets/countdown.mp4";
+import { startPoint, onTrack, finished, starting } from "./track.ts";
 import type { Point } from "./plot.ts";
 import { createConnection, DEFAULT_URL, type Connection } from "./plot.ts";
 
@@ -11,6 +12,9 @@ const pads = document.querySelector<HTMLParagraphElement>("#pads")!;
 const state = document.querySelector<HTMLPreElement>("#state")!;
 const log = document.querySelector<HTMLPreElement>("#log")!;
 const drawTrackButton = document.querySelector<HTMLButtonElement>("#draw-track")!;
+const hud = document.querySelector<HTMLPreElement>("#hud")!;
+const countdown = document.querySelector<HTMLCanvasElement>("#countdown")!;
+const startButton = document.querySelector<HTMLButtonElement>("#start-race")!;
 
 urlInput.value = DEFAULT_URL;
 
@@ -31,12 +35,6 @@ function write(kind: "sent" | "recv" | "info" | "error", text: string) {
   line.textContent = `${new Date().toLocaleTimeString()}  ${printable(text)}`;
   log.append(line);
   log.scrollTop = log.scrollHeight;
-}
-function ask(active: Connection, query: string) {
-  const { promise, resolve } = Promise.withResolvers<string | null>();
-  waiting.push(resolve);
-  active.write(query);
-  return promise;
 }
 
 function setStatus(kind: "idle" | "pending" | "live", text: string) {
@@ -149,6 +147,7 @@ const reach = 10;
 let currentPoint = startPoint()
 let lastTime = 0;
 const minInterval = 1000 / 10;
+const LAPS = 4;
 
 // Helper function to Draw Track
 function drawTrack(HPGL: string) {
@@ -157,7 +156,6 @@ function drawTrack(HPGL: string) {
 
 // Helper function to set Pen
 function setPen(pen: number) {
-  console.log("running switch pen - " + pen)
   connection?.write(`SP${pen}`)
 }
 
@@ -165,18 +163,92 @@ function setPen(pen: number) {
 function start(lap: number, point: Point) {
   setPen(lap + 5)
   let command = `PU;PA ${point.x}, ${point.y};PD;`
-  console.log("running switch pen - " + command)
-  if (lap === 0) {
+  if (lap === 1) {
     connection?.write(`IN;` + command);
+  } else {
+    connection?.write(command);
   }
-  connection?.write(command);
 }
 
 let lapTimes: Array<number> = [];
 
 const gameState = { currentPoint: currentPoint, finished: false, startTime: -1, lap: 0 }
+function renderHud() {
+  const laps = lapTimes.map((ms, i) => `lap ${i + 1}   ${(ms / 1000).toFixed(2)}s`);
+
+  const clock = gameState.finished
+    ? `${(lapTimes.reduce((a, b) => a + b, 0) / 1000).toFixed(2)}s total`
+    : gameState.startTime < 0
+      ? "ready"
+      : `${((Date.now() - gameState.startTime) / 1000).toFixed(2)}s`;
+  hud.textContent = [
+    gameState.finished
+      ? `finished · ${LAPS} laps`
+      : `lap ${Math.min(gameState.lap + 1, LAPS)} / ${LAPS}`,
+    clock,
+    ...laps,
+  ].join("\n");
+}
+const KEY_WIDTH = 640;
+const KEY_OPAQUE = 90;
+const KEY_CLEAR = 200;
+
+function keyFrame(ctx: CanvasRenderingContext2D, video: HTMLVideoElement) {
+  const { width, height } = ctx.canvas;
+  ctx.drawImage(video, 0, 0, width, height);
+  const frame = ctx.getImageData(0, 0, width, height);
+  const px = frame.data;
+  for (let i = 0; i < px.length; i += 4) {
+    const green = px[i + 1] - Math.max(px[i], px[i + 2]);
+    if (green <= KEY_OPAQUE) continue;
+    if (green >= KEY_CLEAR) {
+      px[i + 3] = 0;
+      continue;
+    }
+    px[i + 3] = Math.round(
+      255 * (1 - (green - KEY_OPAQUE) / (KEY_CLEAR - KEY_OPAQUE)),
+    );
+    px[i + 1] = Math.max(px[i], px[i + 2]);
+  }
+  ctx.putImageData(frame, 0, 0);
+}
+
+/** Plays 3·2·1·GO over the camera, resolving as the flag drops. */
+function playCountdown() {
+  const { promise, resolve } = Promise.withResolvers<void>();
+  const ctx = countdown.getContext("2d", { willReadFrequently: true })!;
+
+  const video = document.createElement("video");
+  video.src = countdownUrl;
+  video.playsInline = true;
+
+  const frame = () => {
+    if (video.ended) return;
+    if (countdown.width !== KEY_WIDTH && video.videoWidth > 0) {
+      countdown.width = KEY_WIDTH;
+      countdown.height = Math.round(
+        (KEY_WIDTH * video.videoHeight) / video.videoWidth,
+      );
+    }
+    if (countdown.width === KEY_WIDTH) keyFrame(ctx, video);
+    requestAnimationFrame(frame);
+  };
+
+  const done = () => {
+    countdown.hidden = true;
+    resolve();
+  };
+  video.addEventListener("ended", done);
+  video.addEventListener("error", done);
+
+  countdown.hidden = false;
+  void video.play().then(() => requestAnimationFrame(frame), done);
+  return promise;
+}
 
 async function plot(currentTime: number) {
+
+  renderHud();
 
   if (!gameState.finished) {
     requestAnimationFrame(plot);
@@ -202,19 +274,22 @@ async function plot(currentTime: number) {
 
         if (Math.abs(dx) > 0 || Math.abs(dy) > 0) {
           const nextPoint: Point = { x: gameState.currentPoint.x + dx, y: gameState.currentPoint.y + dy }
+          if (gameState.startTime < 0 && starting(gameState.currentPoint)) {
+            gameState.startTime = Date.now();
+          }
+
           if (onTrack(nextPoint)) {
             gameState.currentPoint = nextPoint
             connection.write(`VS ${speed}; PR ${dx},${dy};`)
           } else if (finished(nextPoint)) {
-
+            connection.write(`VS ${speed}; PR ${dx},${dy};PU;`)
             lapTimes[gameState.lap] = Date.now() - gameState.startTime;
 
             gameState.lap += 1
             start(gameState.lap, startPoint())
             gameState.currentPoint = startPoint()
-            gameState.startTime = Date.now();
-            console.log(`Game ${gameState.lap} started`)
-            if (gameState.lap >= 4) {
+            gameState.startTime = -1;
+            if (gameState.lap >= LAPS) {
               gameState.finished = true;
               gameState.lap = 0;
             }
@@ -236,11 +311,14 @@ async function plot(currentTime: number) {
     const startX = 4100;
     const startY = 2949;
     const lineHeight = 150;
-
+    startButton.disabled = false;
+    drawTrackButton.disabled = false;
+    connection?.write(`SP4;`)
     for (let i = 0; i < lapTimes.length; i += 1) {
-      const seconds = lapTimes[i] * 1000;
-      connection?.write(`PU;PA ${fmt(startX + i * lineHeight, startY)};PD;`);
-      connection?.write(`LB${seconds}\x03`);
+      const seconds = (lapTimes[i] / 1000).toFixed(2);
+      connection?.write(`PU;PA ${fmt(startX , startY - i * lineHeight)};PD;`);
+      connection?.write(`LB${seconds} S \x03`);
+      connection?.write(`SP4;`)
 
     }
   }
@@ -253,16 +331,30 @@ window.addEventListener("gamepadconnected", () => {
   requestAnimationFrame(render);
 });
 
-window.addEventListener("gamepadconnected", async () => {
-  start(gameState.lap, startPoint())
-  gameState.startTime = Date.now();
-  requestAnimationFrame(plot);
-});
+async function startRace() {
+  startButton.disabled = true;
+  drawTrackButton.disabled = true;
 
+  lapTimes = [];
+  gameState.finished = false;
+  gameState.lap = 0;
+  gameState.startTime = -1;
+  gameState.currentPoint = startPoint();
+  renderHud();
+
+  await playCountdown();
+  start(0, startPoint());
+  requestAnimationFrame(plot);
+}
 drawTrackButton.addEventListener("click", () => {
   drawTrack(trackHPGL)
 });
 
+startButton.addEventListener("click", () => {
+  void startRace();
+});
+
 pads.textContent = "Press a button on a controller to connect it.";
 
+renderHud();
 setStatus("idle", "disconnected");

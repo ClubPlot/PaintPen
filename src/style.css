@@ -148,6 +148,52 @@ button {
   }
 }
 
+/* The camera watching the plotter, with the race HUD laid over it: the game is
+   played on paper, so the lap and the clock go where the eyes already are. The
+   feed keeps the plot area's 4:3 shape. */
+#stage {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  background: #1e1e1e;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+
+  iframe {
+    display: block;
+    width: 100%;
+    height: 100%;
+    border: none;
+  }
+}
+
+/* The countdown is shot on green, so it is keyed frame by frame into this
+   canvas and stacked over the camera — the transparent pixels leave the race
+   visible behind the lights. */
+#countdown {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+}
+
+#hud {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  margin: 0;
+  padding: 8px 12px;
+  font: 14px/165% var(--mono);
+  color: #fff;
+  background: rgba(0, 0, 0, 0.55);
+  border-radius: 6px;
+  white-space: pre;
+  /* It sits over the video, but the video's own controls stay clickable. */
+  pointer-events: none;
+}
+
 /* The live gamepad dump on the gamepad page: same well as the log, but sized
    by its contents rather than filling what is left of the page. */
 #state {
