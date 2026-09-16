@@ -26,7 +26,10 @@ const IDX_TO_KEY = {
 
 document.querySelector<HTMLDivElement>("#app")!.innerHTML = `
 <header>
-  <h1>interplot</h1>
+  <div class="brand">
+    <span class="logo" aria-hidden="true"></span>
+    <h1>interplot</h1>
+  </div>
   <div class="row">
     <input id="url" type="text" spellcheck="false" value="${DEFAULT_URL}" />
     <button id="connect" type="button" class="primary">Connect</button>

@@ -4,12 +4,14 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>interplot · gamepad</title>
+    <title>HP 1000</title>
   </head>
   <body>
     <div id="app">
       <header>
-        <h1>interplot · gamepad</h1>
+        <div class="brand">
+          <span class="logo" aria-hidden="true"></span>
+        </div>
         <div class="row">
           <input id="url" type="text" spellcheck="false" />
           <button id="connect" type="button" class="primary">Connect</button>
@@ -18,7 +20,7 @@
           <span id="status" class="status idle">disconnected</span>
         </div>
       </header>
-
+      <p id="pads">Press a button on a controller to connect it.</p>
       <div id="stage">
         <iframe
           id="cam"
@@ -30,7 +32,6 @@
         <pre id="hud"></pre>
       </div>
 
-      <p id="pads">Press a button on a controller to connect it.</p>
       <pre id="state"></pre>
 
       <pre id="log"></pre>

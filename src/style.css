@@ -1,23 +1,52 @@
+/* --- Page chrome ----------------------------------------------------------
+   The console around the plotter: a late-80s CRT workstation. The bevels are
+   the same four-inset-shadow trick the Paint window uses further down — outer
+   black, inner light, inner shadow, outer highlight — but struck in violet
+   rather than grey, so the two read as the same machine from different eras.
+
+   This commits to one dark palette rather than following the system's light
+   and dark: the aesthetic is a lit phosphor screen, and there is no honest
+   light-mode version of that. */
+
 :root {
-  --text: #6b6375;
-  --text-h: #08060d;
-  --bg: #fff;
-  --border: #e5e4e7;
-  --code-bg: #f4f3ec;
-  --accent: #aa3bff;
-  --accent-bg: rgba(170, 59, 255, 0.1);
-  --accent-border: rgba(170, 59, 255, 0.5);
-  --ok: #16913f;
-  --warn: #b8860b;
-  --err: #d9455f;
+  /* Ink */
+  --text: #a993d8;
+  --text-h: #f3ecff;
+  --bg: #120a24;
 
-  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --mono: ui-monospace, Consolas, monospace;
+  /* Panel chrome, light edge through to outer black */
+  --face: #2b1d4d;
+  --face-hi: #6f52ad;
+  --face-li: #493578;
+  --face-lo: #1a1033;
+  --face-dk: #080413;
 
-  font: 18px/145% var(--sans);
-  letter-spacing: 0.18px;
-  color-scheme: light dark;
+  /* Neon */
+  --accent: #ff2fb9;
+  --accent-2: #23e5e5;
+  --accent-bg: rgba(255, 47, 185, 0.12);
+  --accent-border: rgba(255, 47, 185, 0.55);
+  --border: #402d6f;
+  --code-bg: #0c0718;
+  --ok: #39ff88;
+  --warn: #ffc93c;
+  --err: #ff3b6b;
+
+  --sans: ui-monospace, Consolas, 'Courier New', monospace;
+  --heading: ui-monospace, Consolas, 'Courier New', monospace;
+  --mono: ui-monospace, Consolas, 'Courier New', monospace;
+
+  /* Raised and sunken, so panels stay consistent everywhere they appear. */
+  --raised:
+    inset -1px -1px var(--face-dk), inset 1px 1px var(--face-hi),
+    inset -2px -2px var(--face-lo), inset 2px 2px var(--face-li);
+  --sunken:
+    inset 1px 1px var(--face-lo), inset -1px -1px var(--face-hi),
+    inset 2px 2px var(--face-dk), inset -2px -2px var(--face-li);
+
+  font: 16px/150% var(--sans);
+  letter-spacing: 0.3px;
+  color-scheme: dark;
   color: var(--text);
   background: var(--bg);
   font-synthesis: none;
@@ -26,49 +55,96 @@
   -moz-osx-font-smoothing: grayscale;
 
   @media (max-width: 1024px) {
-    font-size: 16px;
-  }
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --text: #9ca3af;
-    --text-h: #f3f4f6;
-    --bg: #16171d;
-    --border: #2e303a;
-    --code-bg: #1f2028;
-    --accent: #c084fc;
-    --accent-bg: rgba(192, 132, 252, 0.15);
-    --accent-border: rgba(192, 132, 252, 0.5);
-    --ok: #4ade80;
-    --warn: #fbbf24;
-    --err: #f87171;
+    font-size: 15px;
   }
 }
 
 body {
   margin: 0;
+  position: relative;
+  min-height: 100svh;
+  /* No background here: the ground is painted by :root, and a background on
+     body would cover the grid, which sits at z-index -1 so the Paint window
+     can be lifted clear of the scanline overlay. */
 }
 
-h1 {
-  font-family: var(--heading);
-  font-weight: 500;
-  color: var(--text-h);
-  font-size: 28px;
-  letter-spacing: -0.84px;
-  margin: 0;
+/* The grid and its horizon glow. Fixed, so the page scrolls over the room
+   rather than dragging it along. */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(120% 70% at 50% 0%, rgba(255, 47, 185, 0.22), transparent 60%),
+    radial-gradient(90% 60% at 50% 100%, rgba(35, 229, 229, 0.16), transparent 65%),
+    repeating-linear-gradient(
+      to right,
+      rgba(255, 47, 185, 0.14) 0 1px, transparent 1px 72px),
+    repeating-linear-gradient(
+      to bottom,
+      rgba(35, 229, 229, 0.09) 0 1px, transparent 1px 72px);
+}
+
+/* Scanlines over everything, including the camera. */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    to bottom, rgba(0, 0, 0, 0.09) 0 1px, transparent 1px 4px);
 }
 
 #app {
-  width: 900px;
+  position: relative;
+  width: 940px;
   max-width: 100%;
   min-height: 100svh;
   margin: 0 auto;
-  padding: 32px 20px;
+  padding: 28px 20px 40px;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+
+/* --- Brand --------------------------------------------------------------- */
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+/* The logo is a single black-on-nothing SVG, so it is used as a mask and the
+   colour comes from here — that way one file serves the neon fill and its
+   glow without carrying either. */
+.logo {
+  flex: 0 0 auto;
+  width: 280px;
+  aspect-ratio: 461 / 141;
+  background: linear-gradient(170deg, var(--accent-2), var(--accent) 70%);
+  -webkit-mask: url(/1khp_logo.svg) no-repeat center / contain;
+  mask: url(/1khp_logo.svg) no-repeat center / contain;
+  filter: drop-shadow(0 0 7px rgba(255, 47, 185, 0.65));
+}
+
+h1 {
+  font-family: var(--heading);
+  font-weight: 700;
+  font-size: 21px;
+  text-transform: uppercase;
+  letter-spacing: 3px;
+  color: var(--text-h);
+  margin: 0;
+  /* Chromatic fringing, as a tired CRT gun would give it. */
+  text-shadow:
+    1.5px 0 rgba(255, 47, 185, 0.75), -1.5px 0 rgba(35, 229, 229, 0.75),
+    0 0 18px rgba(255, 47, 185, 0.35);
 }
 
 header {
@@ -85,113 +161,99 @@ header {
   flex-wrap: wrap;
 }
 
+/* --- Controls ------------------------------------------------------------ */
+
 input {
-  font: 16px var(--mono);
-  color: var(--text-h);
+  font: 14px var(--mono);
+  color: var(--accent-2);
   background: var(--code-bg);
-  border: 2px solid transparent;
-  border-radius: 5px;
-  padding: 7px 10px;
+  border: none;
+  border-radius: 0;
+  padding: 9px 11px;
   flex: 1 1 220px;
   min-width: 0;
+  box-shadow: var(--sunken);
+  caret-color: var(--accent);
 
+  &::placeholder {
+    color: #5c4a8a;
+  }
   &:focus-visible {
     outline: none;
-    border-color: var(--accent-border);
+    color: var(--text-h);
+    box-shadow: var(--sunken), 0 0 0 1px var(--accent-border);
   }
   &:disabled {
-    opacity: 0.5;
+    opacity: 0.45;
   }
 }
 
 button {
-  font: 16px var(--mono);
-  border-radius: 5px;
-  padding: 7px 14px;
+  font: 13px/1 var(--mono);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1.4px;
+  border-radius: 0;
+  padding: 10px 16px;
   color: var(--text-h);
-  background: var(--code-bg);
-  border: 2px solid transparent;
+  background: var(--face);
+  border: none;
   cursor: pointer;
-  transition: border-color 0.3s;
+  box-shadow: var(--raised);
+  transition: color 0.15s, text-shadow 0.15s;
 
   &.primary {
     color: var(--accent);
-    background: var(--accent-bg);
+    text-shadow: 0 0 10px rgba(255, 47, 185, 0.6);
   }
   &:hover:not(:disabled) {
-    border-color: var(--accent-border);
+    color: var(--accent-2);
+    text-shadow: 0 0 10px rgba(35, 229, 229, 0.7);
+  }
+  /* Pressed reads as the bevel inverting, the way the Paint buttons do. */
+  &:active:not(:disabled) {
+    box-shadow: var(--sunken);
+    padding: 11px 15px 9px 17px;
   }
   &:focus-visible {
-    outline: 2px solid var(--accent);
+    outline: 1px solid var(--accent);
     outline-offset: 2px;
   }
   &:disabled {
-    opacity: 0.45;
+    opacity: 0.4;
     cursor: not-allowed;
   }
 }
 
 .status {
-  font: 14px var(--mono);
-  padding: 4px 10px;
-  border-radius: 999px;
-  border: 1px solid var(--border);
+  font: 12px/1 var(--mono);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1.4px;
+  padding: 7px 12px;
+  border-radius: 0;
+  border: none;
+  background: var(--code-bg);
+  box-shadow: var(--sunken);
 
   &.idle {
     color: var(--text);
   }
   &.pending {
     color: var(--warn);
+    text-shadow: 0 0 9px rgba(255, 201, 60, 0.7);
   }
   &.live {
     color: var(--ok);
+    text-shadow: 0 0 9px rgba(57, 255, 136, 0.8);
   }
 }
 
-/* The camera watching the plotter, with the race HUD laid over it: the game is
-   played on paper, so the lap and the clock go where the eyes already are. The
-   feed keeps the plot area's 4:3 shape. */
-#stage {
-  position: relative;
-  aspect-ratio: 4 / 3;
-  background: #1e1e1e;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  overflow: hidden;
-
-  iframe {
-    display: block;
-    width: 100%;
-    height: 100%;
-    border: none;
-  }
-}
-
-/* The countdown is shot on green, so it is keyed frame by frame into this
-   canvas and stacked over the camera — the transparent pixels leave the race
-   visible behind the lights. */
-#countdown {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  pointer-events: none;
-}
-
-#hud {
-  position: absolute;
-  top: 12px;
-  left: 12px;
+#pads {
   margin: 0;
-  padding: 8px 12px;
-  font: 14px/165% var(--mono);
-  color: #fff;
-  background: rgba(0, 0, 0, 0.55);
-  border-radius: 6px;
-  white-space: pre;
-  /* It sits over the video, but the video's own controls stay clickable. */
-  pointer-events: none;
+  font: 13px var(--mono);
+  letter-spacing: 1px;
+  color: var(--text);
 }
 
 /* The live gamepad dump on the gamepad page: same well as the log, but sized
@@ -200,34 +262,119 @@ button {
   margin: 0;
   padding: 12px;
   overflow-x: auto;
-  font: 14px/165% var(--mono);
-  color: var(--text-h);
+  font: 13px/165% var(--mono);
+  color: var(--accent-2);
   background: var(--code-bg);
-  border: 1px solid var(--border);
-  border-radius: 6px;
+  border: none;
+  border-radius: 0;
+  box-shadow: var(--sunken);
 }
 
+/* --- Stage --------------------------------------------------------------- */
+
+/* The camera watching the plotter, with the race HUD laid over it: the game is
+   played on paper, so the lap and the clock go where the eyes already are. The
+   feed keeps the plot area's 4:3 shape, inside a monitor bezel. */
+#stage {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  padding: 8px;
+  background: var(--face);
+  border: none;
+  border-radius: 0;
+  box-shadow: var(--raised);
+
+  iframe {
+    display: block;
+    width: 100%;
+    height: 100%;
+    border: none;
+    background: #05030c;
+    box-shadow: var(--sunken);
+  }
+}
+
+/* Scanlines and a corner vignette over the feed only — the stage is the one
+   place on the page that really is a screen. Sits under the HUD. */
+#stage::after {
+  content: '';
+  position: absolute;
+  inset: 8px;
+  z-index: 1;
+  pointer-events: none;
+  background:
+    radial-gradient(120% 120% at 50% 50%, transparent 55%, rgba(0, 0, 0, 0.55)),
+    repeating-linear-gradient(
+      to bottom, rgba(0, 0, 0, 0.22) 0 1px, transparent 1px 3px);
+}
+
+#hud {
+  z-index: 2;
+}
+
+/* The countdown is shot on green, so it is keyed frame by frame into this
+   canvas and stacked over the camera — the transparent pixels leave the race
+   visible behind the lights. */
+#countdown {
+  position: absolute;
+  inset: 8px;
+  width: calc(100% - 16px);
+  height: calc(100% - 16px);
+  object-fit: contain;
+  pointer-events: none;
+}
+
+#hud {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  margin: 0;
+  padding: 10px 14px;
+  font: 13px/170% var(--mono);
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  color: var(--accent-2);
+  text-shadow: 0 0 10px rgba(35, 229, 229, 0.75);
+  background: rgba(8, 4, 19, 0.72);
+  border-radius: 0;
+  box-shadow: var(--sunken);
+  white-space: pre;
+  /* It sits over the video, but the video's own controls stay clickable. */
+  pointer-events: none;
+}
+
+/* --- Log ----------------------------------------------------------------- */
+
 #log {
+  position: relative;
   flex: 1 1 auto;
   margin: 0;
   padding: 12px;
   min-height: 240px;
   overflow-y: auto;
-  font: 14px/165% var(--mono);
+  font: 13px/165% var(--mono);
+  color: var(--text);
   background: var(--code-bg);
-  border: 1px solid var(--border);
-  border-radius: 6px;
+  border: none;
+  border-radius: 0;
+  box-shadow: var(--sunken);
   white-space: pre-wrap;
   word-break: break-word;
 
   .sent {
     color: var(--accent);
+    text-shadow: 0 0 8px rgba(255, 47, 185, 0.45);
   }
   .recv {
-    color: var(--text-h);
+    color: var(--accent-2);
+    text-shadow: 0 0 8px rgba(35, 229, 229, 0.45);
+  }
+  .info {
+    color: #6f5aa8;
   }
   .error {
     color: var(--err);
+    text-shadow: 0 0 8px rgba(255, 59, 107, 0.5);
   }
 }
 
@@ -244,6 +391,8 @@ button {
   --shadow: #808080;
   --dark: #000000;
 
+  position: relative;
+  z-index: 4;
   width: max-content;
   max-width: 100%;
   padding: 3px;
@@ -272,6 +421,23 @@ button {
     padding: 0;
     transition: none;
     cursor: default;
+    /* The page's buttons are bevelled by default now; this window draws its
+       own bevels per control, so it starts flat. */
+    box-shadow: none;
+    text-shadow: none;
+    text-transform: none;
+    letter-spacing: normal;
+
+    /* The page's buttons light up and sink on press. These do not: each
+       control here draws its own state, and the page rules outrank a plain
+       `.paint button` on specificity, so they are turned back off by hand. */
+    &:hover,
+    &:active {
+      color: inherit;
+      padding: 0;
+      box-shadow: none;
+      text-shadow: none;
+    }
 
     &:focus-visible {
       outline: 1px dotted var(--dark);
