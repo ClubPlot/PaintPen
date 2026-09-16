@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
+    "deploy": "rsync -av dist/ plotpi:/home/rc/plotter-web/static/1khp",
     "test": "node track/test-hit-regions.mjs",
     "regions": "node track/extract-hit-regions.mjs",
     "regions:update": "node track/extract-hit-regions.mjs > track/hit-regions.json"
