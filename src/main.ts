@@ -8,28 +8,9 @@ import {
 } from "./plot.ts";
 import { mountPaint } from "./paint.ts";
 
-const IDX_TO_KEY = {
-  0: "A",
-  1: "B",
-  3: "Y",
-  2: "X",
-  13: "DOWN",
-  15: "RIGHT",
-  12: "UP",
-  14: "LEFT",
-  5: "R1",
-  7: "R2",
-  6: "L1",
-  8: "L2",
-};
-//const BUTTON_TO_KEY
-
 document.querySelector<HTMLDivElement>("#app")!.innerHTML = `
 <header>
-  <div class="brand">
-    <span class="logo" aria-hidden="true"></span>
-    <h1>interplot</h1>
-  </div>
+  <h1>interplot</h1>
   <div class="row">
     <input id="url" type="text" spellcheck="false" value="${DEFAULT_URL}" />
     <button id="connect" type="button" class="primary">Connect</button>
@@ -177,40 +158,5 @@ form.addEventListener("submit", (event) => {
 
 pingButton.addEventListener("click", () => send(DSC.OutputIdentification));
 oaButton.addEventListener("click", () => send(HPGL.OutputActualPosition));
-
-window.addEventListener("gamepadconnected", (e) => {
-  console.log(
-    "Gamepad connected at index %d: %s. %d buttons, %d axes.",
-    e.gamepad.index,
-    e.gamepad.id,
-    e.gamepad.buttons.length,
-    e.gamepad.axes.length,
-  );
-  const gp = navigator.getGamepads()[e.gamepad.index];
-  console.log(gp);
-
-  gameLoop();
-});
-
-let start;
-let a = 0;
-let b = 0;
-
-function gameLoop() {
-  const gamepads = navigator.getGamepads();
-  if (!gamepads) {
-    return;
-  }
-
-  const gp = gamepads[0];
-  console.log(gp.axes);
-  for (let i = 0; i < gp.buttons.length; i++) {
-    if (gp.buttons[i].pressed) {
-      //        console.log(i);
-    }
-  }
-
-  start = requestAnimationFrame(gameLoop);
-}
 
 setStatus("idle", "disconnected");

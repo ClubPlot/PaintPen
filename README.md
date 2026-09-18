@@ -1,29 +1,30 @@
-# 1KHP Pen Plotter Game
+# interplot
+
+A browser drawing app that drives a vintage HP-GL pen plotter (HP 7475A / 7550 class)
+live over a WebSocket bridge. Draw in an MS Paint-style canvas and the strokes come
+out in ink.
+
+There is no backend here — the app talks to a socket-to-serial bridge running on the
+plotter host (`DEFAULT_URL` in `src/plot.ts`).
+
+## Running it
+
+```sh
+yarn dev       # Vite dev server
+yarn build     # tsc type-check (noEmit) + vite build — also the lint gate
+yarn preview   # serve the production build
+yarn deploy    # rsync dist/ to the plotter host
+```
+
+## Layout
+
+- `index.html` → `src/main.ts` — connection bar, command console and log; mounts the
+  paint surface.
+- `src/paint.ts` — the drawing UI.
+- `src/plot.ts` — HP-GL command builders, the plotter unit system, and the WebSocket
+  connection wrapper.
 
 ## To do
 
-### Game state and flow fixes
-
-- [ ] Written lap in color of lap pen used
-- [ ] Bug where pen goes to end before start after selected
-- [ ] Investigate timing loop
-- [ ] Start time starts when the user crosses the start line
-- [ ] Song in web app
-- [ ] Refactor game loop so that it is easier to work with (async generators)
-- [ ] Store high scores and show on the website, prompt the user for their name
-
-### Plot.recurse website updates
-
-- [ ] Get game working on website
-- [ ] Edit HTML file naming
-- [ ] Work to have camera be publicly accessible so that users can play without Tailscale access
-
-
-### Helping Other People
-
-- [ ] Add our learnings to the Plotter Readme
-- [ ] Package Websocket client as a library
-
-
-### New Additions
-- [ ] Allow users to build their own track, through the canvas, stores hit regions
+- [ ] Package the WebSocket client as a library
+- [ ] Add our learnings to the plotter README
