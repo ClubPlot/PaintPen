@@ -1,4 +1,4 @@
-# interplot
+# Paint Pen
 
 A browser drawing app that drives a vintage HP-GL pen plotter (HP 7475A / 7550 class)
 live over a WebSocket bridge. Draw in an MS Paint-style canvas and the strokes come
@@ -27,4 +27,3 @@ yarn deploy    # rsync dist/ to the plotter host
 ## To do
 
 - [ ] Package the WebSocket client as a library
-- [ ] Add our learnings to the plotter README
