@@ -77,7 +77,7 @@ export const PENS = [
    number: 3 here is `SP4;` on the wire. */
 export const DEFAULT_PEN = 3;
 
-export const DEFAULT_URL = "ws://plotpi.cymric-logarithm.ts.net:8181";
+export const DEFAULT_URL = "wss://plotpi.cymric-logarithm.ts.net:8443/";
 
 export type Connection = ReturnType<typeof createConnection>;
 
