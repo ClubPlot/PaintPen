@@ -1,0 +1,6 @@
+services:
+  web:
+    build: .
+    command: "yarn preview --host 0.0.0.0 --port 4173"
+    ports:
+      - "4173:4173"

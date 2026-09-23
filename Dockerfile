@@ -1,8 +1,9 @@
 FROM node:24.19
 
+RUN corepack enable
+
 WORKDIR /app
 COPY . .
 
-RUN corepack enable &&\
-    yarn install && \
+RUN yarn install && \
     yarn build
