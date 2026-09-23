@@ -206,15 +206,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"interplot@workspace:.":
-  version: 0.0.0-use.local
-  resolution: "interplot@workspace:."
-  dependencies:
-    typescript: "npm:~6.0.2"
-    vite: "npm:^8.2.2"
-  languageName: unknown
-  linkType: soft
-
 "isexe@npm:^4.0.0":
   version: 4.0.0
   resolution: "isexe@npm:4.0.0"
@@ -397,6 +388,15 @@ __metadata:
   checksum: 10c0/980d89257f9587f3e1f77877ddbf905d6aa3b738ec33e49a4fa1a059a0dd82eb28063982b150654a7ae9de386f2ead60e56172db7d37cf56de545f7392a2a26a
   languageName: node
   linkType: hard
+
+"paintpen@workspace:.":
+  version: 0.0.0-use.local
+  resolution: "paintpen@workspace:."
+  dependencies:
+    typescript: "npm:~6.0.2"
+    vite: "npm:^8.2.2"
+  languageName: unknown
+  linkType: soft
 
 "picocolors@npm:^1.1.1":
   version: 1.1.1

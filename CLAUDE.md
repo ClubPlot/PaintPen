@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-`interplot` is a browser app that drives a vintage **HP-GL pen plotter** (HP 7475A / 7550
+`Paint Pen` is a browser app that drives a vintage **HP-GL pen plotter** (HP 7475A / 7550
 class) live over a WebSocket bridge. There is no backend in this repo — the app talks to a
 socket-to-serial bridge on the plotter host (`DEFAULT_URL` points at a Tailscale address,
 `ws://plotpi…:8181`). The app is a single page:

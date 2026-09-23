@@ -140,7 +140,8 @@ const MENUS: { name: string, items: MenuItem[] }[] = [
   },
 ]
 
-const DEFAULT_HINT = 'For Help, click Help Topics on the Help Menu.'
+/* The pane rests empty; the tools fill it while they are being used. */
+const DEFAULT_HINT = ''
 
 const clamp = (value: number, min: number, max: number) =>
   Math.min(max, Math.max(min, value))
@@ -214,11 +215,9 @@ export function mountPaint(host: HTMLElement, port: PaintPort) {
 <div class="paint">
   <div class="titlebar">
     <span class="title-icon">${icon(`<path d="M3 13l1-3 7-7 2 2-7 7z"/><path d="M10 5l2 2"/>`)}</span>
-    <span class="title-text">Interplot - Paint</span>
+    <span class="title-text">Paint Pen</span>
     <span class="title-buttons">
       <button type="button" data-window="collapse" title="Minimize"><i>_</i></button>
-      <button type="button" data-window="collapse" title="Maximize"><i>□</i></button>
-      <button type="button" data-window="collapse" title="Close"><i>✕</i></button>
     </span>
   </div>
 

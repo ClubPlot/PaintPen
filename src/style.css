@@ -1,144 +1,326 @@
+/* --- Windows 98 ----------------------------------------------------------
+   The whole page is one desktop: a fixed grey system palette, no dark mode,
+   and every panel built from the same four inset shadows — outer highlight,
+   inner light, inner shadow, outer black. The paint window was already drawn
+   this way; the shell around it now speaks the same language, so the tokens
+   and the bevels live here at the root and both windows share them. */
+
 :root {
-  --text: #6b6375;
-  --text-h: #08060d;
-  --bg: #fff;
-  --border: #e5e4e7;
-  --code-bg: #f4f3ec;
-  --accent: #aa3bff;
-  --accent-bg: rgba(170, 59, 255, 0.1);
-  --accent-border: rgba(170, 59, 255, 0.5);
-  --ok: #16913f;
-  --warn: #b8860b;
-  --err: #d9455f;
+  --face: #c0c0c0;
+  --hilite: #ffffff;
+  --light: #dfdfdf;
+  --shadow: #808080;
+  --dark: #000000;
+  --paper: #ffffff;
+  --desktop: #3a6ea5;
+  --title: #000080;
+  --title-end: #1084d0;
+  --text: #000000;
+  --text-dim: #404040;
 
-  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --mono: ui-monospace, Consolas, monospace;
+  /* Raised (a button), sunken (a well), and the one-pixel versions used for
+     small chrome — a swatch, a status pane. `pressed` is a button held down. */
+  --bevel-out:
+    inset -1px -1px var(--dark), inset 1px 1px var(--hilite),
+    inset -2px -2px var(--shadow), inset 2px 2px var(--light);
+  --bevel-in:
+    inset 1px 1px var(--shadow), inset -1px -1px var(--hilite),
+    inset 2px 2px var(--dark), inset -2px -2px var(--light);
+  --bevel-out-thin: inset -1px -1px var(--shadow), inset 1px 1px var(--hilite);
+  --bevel-in-thin: inset 1px 1px var(--shadow), inset -1px -1px var(--hilite);
+  --bevel-pressed: inset 1px 1px var(--shadow), inset -1px -1px var(--light);
 
-  font: 18px/145% var(--sans);
-  letter-spacing: 0.18px;
-  color-scheme: light dark;
+  --ui: Tahoma, 'MS Sans Serif', Geneva, Verdana, sans-serif;
+  --mono: 'Courier New', ui-monospace, Consolas, monospace;
+
+  --ok: #008000;
+  --warn: #808000;
+  --err: #800000;
+
+  font: 12px/1.4 var(--ui);
+  letter-spacing: normal;
+  color-scheme: light;
   color: var(--text);
-  background: var(--bg);
+  /* The period look depends on hard pixel edges: no smoothing, no synthesis. */
+  -webkit-font-smoothing: none;
   font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-
-  @media (max-width: 1024px) {
-    font-size: 16px;
-  }
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --text: #9ca3af;
-    --text-h: #f3f4f6;
-    --bg: #16171d;
-    --border: #2e303a;
-    --code-bg: #1f2028;
-    --accent: #c084fc;
-    --accent-bg: rgba(192, 132, 252, 0.15);
-    --accent-border: rgba(192, 132, 252, 0.5);
-    --ok: #4ade80;
-    --warn: #fbbf24;
-    --err: #f87171;
-  }
 }
 
 body {
   margin: 0;
+  background: var(--desktop);
 }
 
-h1 {
-  font-family: var(--heading);
-  font-weight: 500;
-  color: var(--text-h);
-  font-size: 28px;
-  letter-spacing: -0.84px;
-  margin: 0;
-}
-
+/* The desktop: the window floats on it, and the taskbar is pinned below.
+   740px is the Paint window's own width plus the frame around it, so the
+   groupboxes above and below line up with the canvas. */
 #app {
-  width: 900px;
-  max-width: 100%;
   min-height: 100svh;
-  margin: 0 auto;
-  padding: 32px 20px;
   box-sizing: border-box;
+  padding: 24px 16px calc(28px + 24px);
   display: flex;
-  flex-direction: column;
-  gap: 16px;
+  justify-content: center;
+  align-items: flex-start;
 }
 
-header {
+/* Paint is a window in its own right, sitting in the middle of the shell. */
+#paint {
+  display: flex;
+  justify-content: center;
+}
+
+/* --- Window chrome -------------------------------------------------------- */
+
+.window,
+.paint {
+  padding: 3px;
+  background: var(--face);
+  color: var(--text);
+  font: 11px/1.4 var(--ui);
+  box-shadow: var(--bevel-out);
+}
+
+.window {
+  width: 740px;
+  max-width: 100%;
+  box-sizing: border-box;
+  font-size: 12px;
+}
+
+.window-body {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 8px;
+  padding: 6px 4px 4px;
+}
+
+.titlebar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 18px;
+  padding: 0 2px 0 3px;
+  background: linear-gradient(90deg, var(--title), var(--title-end));
+  color: #fff;
+  font-weight: bold;
+  user-select: none;
+
+  .title-icon {
+    color: #fff;
+  }
+  .title-icon svg {
+    width: 13px;
+    height: 13px;
+    display: block;
+  }
+  .title-text {
+    flex: 1 1 auto;
+    /* The shell's title doubles as the page heading. */
+    font: inherit;
+    margin: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .title-buttons {
+    display: flex;
+    gap: 2px;
+  }
+  button {
+    width: 16px;
+    height: 14px;
+    min-width: 0;
+    display: grid;
+    place-items: center;
+    padding: 0;
+    box-shadow: var(--bevel-out);
+  }
+  button i {
+    font: 9px/1 var(--ui);
+    font-style: normal;
+    /* The glyphs sit high in the box in the original. */
+    transform: translateY(-1px);
+  }
+  button:active {
+    box-shadow: var(--bevel-pressed);
+  }
+}
+
+.menubar {
+  display: flex;
+  padding: 1px 0 2px;
+  user-select: none;
+
+  .menu {
+    position: relative;
+  }
+  .menu-title {
+    min-width: 0;
+    padding: 2px 7px;
+    box-shadow: none;
+  }
+  .menu-title:hover,
+  .menu-title.open {
+    background: var(--title);
+    color: #fff;
+  }
+  .menu-title:active {
+    box-shadow: none;
+  }
+}
+
+.dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 2;
+  min-width: 168px;
+  padding: 2px;
+  background: var(--face);
+  box-shadow: var(--bevel-out);
+
+  hr {
+    border: none;
+    border-top: 1px solid var(--shadow);
+    border-bottom: 1px solid var(--hilite);
+    margin: 3px 1px;
+  }
+}
+
+.dropdown .menu-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  width: 100%;
+  min-width: 0;
+  padding: 3px 6px 3px 20px;
+  text-align: left;
+  white-space: nowrap;
+  box-shadow: none;
+
+  .accel {
+    color: inherit;
+  }
+  &:disabled {
+    /* The engraved look Windows used for unavailable commands. */
+    color: var(--shadow);
+    text-shadow: 1px 1px var(--hilite);
+  }
+  &:hover:not(:disabled) {
+    background: var(--title);
+    color: #fff;
+  }
+  &:active {
+    box-shadow: none;
+  }
+}
+
+/* A collapsed window keeps only its title bar, and that bar restores it. */
+.window.collapsed > *:not(.titlebar),
+.paint.collapsed > *:not(.titlebar) {
+  display: none;
+}
+.collapsed > .titlebar {
+  cursor: pointer;
+}
+
+/* --- Controls ------------------------------------------------------------- */
+
+button {
+  font: 11px var(--ui);
+  color: var(--text);
+  background: var(--face);
+  border: none;
+  border-radius: 0;
+  min-width: 75px;
+  padding: 4px 10px;
+  cursor: default;
+  box-shadow: var(--bevel-out);
+
+  &:active:not(:disabled) {
+    box-shadow: var(--bevel-pressed);
+  }
+  &:focus-visible {
+    outline: 1px dotted var(--dark);
+    outline-offset: -4px;
+  }
+  &:disabled {
+    color: var(--shadow);
+    text-shadow: 1px 1px var(--hilite);
+  }
+}
+
+input {
+  font: 12px var(--mono);
+  color: var(--text);
+  background: var(--paper);
+  border: none;
+  border-radius: 0;
+  padding: 3px 4px;
+  flex: 1 1 220px;
+  min-width: 0;
+  box-shadow: var(--bevel-in);
+
+  &:focus-visible {
+    outline: none;
+  }
+  &:disabled {
+    background: var(--face);
+    color: var(--shadow);
+  }
+}
+
+/* A group box: the sunken/raised hairline frame around a labelled set of
+   controls, with the legend punched through the top edge. */
+.group {
+  margin: 0;
+  min-width: 0;
+  padding: 10px 8px 8px;
+  border: none;
+  box-shadow:
+    inset -1px -1px var(--hilite), inset 1px 1px var(--shadow),
+    inset -2px -2px var(--face), inset 2px 2px var(--hilite);
+
+  /* The frame is drawn with inset shadows rather than a real border, so the
+     legend has to mask the line it sits on itself. */
+  legend {
+    padding: 0 4px;
+    margin-left: 4px;
+    background: var(--face);
+  }
 }
 
 .row,
 #command-form {
   display: flex;
-  gap: 8px;
+  gap: 6px;
   align-items: center;
   flex-wrap: wrap;
 }
 
-input {
-  font: 16px var(--mono);
-  color: var(--text-h);
-  background: var(--code-bg);
-  border: 2px solid transparent;
-  border-radius: 5px;
-  padding: 7px 10px;
-  flex: 1 1 220px;
-  min-width: 0;
-
-  &:focus-visible {
-    outline: none;
-    border-color: var(--accent-border);
-  }
-  &:disabled {
-    opacity: 0.5;
-  }
+label {
+  user-select: none;
 }
 
-button {
-  font: 16px var(--mono);
-  border-radius: 5px;
-  padding: 7px 14px;
-  color: var(--text-h);
-  background: var(--code-bg);
-  border: 2px solid transparent;
-  cursor: pointer;
-  transition: border-color 0.3s;
-
-  &.primary {
-    color: var(--accent);
-    background: var(--accent-bg);
-  }
-  &:hover:not(:disabled) {
-    border-color: var(--accent-border);
-  }
-  &:focus-visible {
-    outline: 2px solid var(--accent);
-    outline-offset: 2px;
-  }
-  &:disabled {
-    opacity: 0.45;
-    cursor: not-allowed;
-  }
-}
-
+/* Connection state reads as a tray-style indicator: a sunken pane with a
+   coloured lamp, rather than a rounded pill. */
 .status {
-  font: 14px var(--mono);
-  padding: 4px 10px;
-  border-radius: 999px;
-  border: 1px solid var(--border);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 6px;
+  font: 11px var(--ui);
+  box-shadow: var(--bevel-in-thin);
 
+  &::before {
+    content: '';
+    width: 7px;
+    height: 7px;
+    background: currentColor;
+    box-shadow: var(--bevel-in-thin);
+  }
   &.idle {
-    color: var(--text);
+    color: var(--shadow);
   }
   &.pending {
     color: var(--warn);
@@ -151,51 +333,131 @@ button {
 #log {
   flex: 1 1 auto;
   margin: 0;
-  padding: 12px;
-  min-height: 240px;
+  padding: 4px 6px;
+  height: 220px;
   overflow-y: auto;
-  font: 14px/165% var(--mono);
-  background: var(--code-bg);
-  border: 1px solid var(--border);
-  border-radius: 6px;
+  font: 12px/150% var(--mono);
+  color: var(--text);
+  background: var(--paper);
+  box-shadow: var(--bevel-in);
   white-space: pre-wrap;
   word-break: break-word;
 
   .sent {
-    color: var(--accent);
+    color: var(--title);
   }
   .recv {
-    color: var(--text-h);
+    color: var(--text);
+  }
+  .info {
+    color: var(--text-dim);
   }
   .error {
     color: var(--err);
   }
 }
 
+.statusbar {
+  display: flex;
+  gap: 2px;
+  margin-top: 2px;
+
+  .pane {
+    padding: 2px 5px;
+    box-shadow: var(--bevel-in-thin);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .hint {
+    flex: 1 1 auto;
+  }
+}
+
+/* --- Taskbar -------------------------------------------------------------- */
+
+.taskbar {
+  position: fixed;
+  inset: auto 0 0 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 28px;
+  padding: 2px;
+  box-sizing: border-box;
+  background: var(--face);
+  font: 11px var(--ui);
+  user-select: none;
+  box-shadow: inset 0 1px var(--hilite), inset 0 2px var(--light);
+
+  .start {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    min-width: 0;
+    height: 22px;
+    padding: 0 6px 0 3px;
+    font-weight: bold;
+  }
+  .start svg {
+    width: 15px;
+    height: 14px;
+    display: block;
+  }
+
+  .divider {
+    width: 2px;
+    align-self: stretch;
+    margin: 1px 2px;
+    box-shadow: var(--bevel-out-thin);
+  }
+
+  /* The open window's button: latched down, as the focused task always is. */
+  .task {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    height: 22px;
+    padding: 0 8px;
+    min-width: 140px;
+    font-weight: bold;
+    box-shadow: var(--bevel-pressed);
+    background:
+      repeating-conic-gradient(#d8d8d8 0% 25%, var(--face) 0% 50%) 0 0 / 4px 4px;
+  }
+  .task svg {
+    width: 13px;
+    height: 13px;
+    display: block;
+  }
+
+  .tray {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    height: 22px;
+    padding: 0 6px;
+    box-shadow: var(--bevel-in-thin);
+  }
+  .tray svg {
+    width: 13px;
+    height: 13px;
+    display: block;
+    color: var(--text-dim);
+  }
+}
+
 /* --- Paint ---------------------------------------------------------------
-   A fixed Windows 95 palette: this window is a machine console, so it stays
-   grey whatever the page's colour scheme is doing. Raised and sunken edges are
-   the usual four inset shadows — outer highlight, inner light, inner shadow,
-   outer black. */
+   The drawing window. Chrome it shares with the shell — title bar, menus,
+   status panes — comes from the rules above; what is left here is the parts
+   only Paint has. */
 
 .paint {
-  --face: #c0c0c0;
-  --hilite: #ffffff;
-  --light: #dfdfdf;
-  --shadow: #808080;
-  --dark: #000000;
-
   width: max-content;
   max-width: 100%;
-  padding: 3px;
-  background: var(--face);
-  color: #000;
-  font: 11px/1.4 Tahoma, 'MS Sans Serif', Geneva, Verdana, sans-serif;
-  letter-spacing: normal;
   user-select: none;
-  box-shadow:
-    inset -1px -1px var(--dark), inset 1px 1px var(--hilite),
-    inset -2px -2px var(--shadow), inset 2px 2px var(--light);
 
   svg {
     width: 16px;
@@ -204,136 +466,30 @@ button {
     stroke-width: 1;
   }
 
+  /* Paint's buttons are icon cells and menu entries, not dialog buttons: they
+     carry their own bevels and must not take the dialog metrics. */
   button {
     font: inherit;
-    color: inherit;
-    background: var(--face);
-    border: none;
-    border-radius: 0;
+    min-width: 0;
     padding: 0;
-    transition: none;
-    cursor: default;
+    box-shadow: none;
 
-    &:focus-visible {
-      outline: 1px dotted var(--dark);
-      outline-offset: -4px;
+    &:active:not(:disabled) {
+      box-shadow: none;
     }
     &:disabled {
-      opacity: 1;
-      cursor: default;
+      color: inherit;
+      text-shadow: none;
     }
   }
 
-  &.collapsed > *:not(.titlebar) {
-    display: none;
-  }
-  &.collapsed .titlebar {
-    cursor: pointer;
-  }
 }
 
-.paint .titlebar {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  height: 18px;
-  padding: 0 2px 0 3px;
-  background: linear-gradient(90deg, #000080, #1084d0);
-  color: #fff;
-  font-weight: bold;
-
-  .title-icon {
-    color: #fff;
-  }
-  .title-icon svg {
-    width: 13px;
-    height: 13px;
-  }
-  .title-text {
-    flex: 1 1 auto;
-  }
-  .title-buttons {
-    display: flex;
-    gap: 2px;
-  }
-  button {
-    width: 16px;
-    height: 14px;
-    display: grid;
-    place-items: center;
-    box-shadow:
-      inset -1px -1px var(--dark), inset 1px 1px var(--hilite),
-      inset -2px -2px var(--shadow), inset 2px 2px var(--light);
-  }
-  button i {
-    font: 9px/1 Tahoma, sans-serif;
-    font-style: normal;
-    /* The glyphs sit high in the box in the original. */
-    transform: translateY(-1px);
-  }
-  button:active {
-    box-shadow: inset 1px 1px var(--shadow), inset -1px -1px var(--light);
-  }
+.paint .titlebar button {
+  box-shadow: var(--bevel-out);
 }
-
-.paint .menubar {
-  display: flex;
-  padding: 1px 0 2px;
-
-  .menu {
-    position: relative;
-  }
-  .menu-title {
-    padding: 2px 7px;
-  }
-  .menu-title:hover,
-  .menu-title.open {
-    background: #000080;
-    color: #fff;
-  }
-}
-
-.paint .dropdown {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  z-index: 2;
-  min-width: 168px;
-  padding: 2px;
-  background: var(--face);
-  box-shadow:
-    inset -1px -1px var(--dark), inset 1px 1px var(--hilite),
-    inset -2px -2px var(--shadow), inset 2px 2px var(--light);
-
-  hr {
-    border: none;
-    border-top: 1px solid var(--shadow);
-    border-bottom: 1px solid var(--hilite);
-    margin: 3px 1px;
-  }
-}
-
-.paint .menu-item {
-  display: flex;
-  justify-content: space-between;
-  gap: 24px;
-  width: 100%;
-  padding: 3px 6px 3px 20px;
-  text-align: left;
-  white-space: nowrap;
-
-  .accel {
-    color: inherit;
-  }
-  &:disabled {
-    /* The engraved look Windows used for unavailable commands. */
-    color: var(--shadow);
-    text-shadow: 1px 1px var(--hilite);
-  }
-  &:hover:not(:disabled) {
-    background: #000080;
-    color: #fff;
-  }
+.paint .titlebar button:active {
+  box-shadow: var(--bevel-pressed);
 }
 
 .paint .workspace {
@@ -353,15 +509,13 @@ button {
     height: 24px;
     display: grid;
     place-items: center;
-    box-shadow:
-      inset -1px -1px var(--dark), inset 1px 1px var(--hilite),
-      inset -2px -2px var(--shadow), inset 2px 2px var(--light);
+    box-shadow: var(--bevel-out);
   }
   .tool:disabled {
     color: var(--shadow);
   }
   .tool.active {
-    box-shadow: inset 1px 1px var(--shadow), inset -1px -1px var(--light);
+    box-shadow: var(--bevel-pressed);
     background:
       repeating-conic-gradient(#d8d8d8 0% 25%, var(--face) 0% 50%) 0 0 / 4px 4px;
   }
@@ -376,18 +530,18 @@ button {
     display: flex;
     flex-direction: column;
     gap: 1px;
-    box-shadow: inset 1px 1px var(--shadow), inset -1px -1px var(--hilite);
+    box-shadow: var(--bevel-in-thin);
   }
   /* The text tool's sizes, each shown at the size it draws. */
   .text-size {
     flex: 1 1 0;
     display: grid;
     place-items: center;
-    font-family: 'Courier New', monospace;
+    font-family: var(--mono);
     line-height: 1;
   }
   .text-size.active {
-    background: #000080;
+    background: var(--title);
     color: #fff;
   }
   /* Live typing is a mode, so it latches like a toolbox button rather than
@@ -395,12 +549,10 @@ button {
   .live-toggle {
     flex: 0 0 auto;
     margin-top: 2px;
-    box-shadow:
-      inset -1px -1px var(--dark), inset 1px 1px var(--hilite),
-      inset -2px -2px var(--shadow), inset 2px 2px var(--light);
+    box-shadow: var(--bevel-out);
   }
   .live-toggle.active {
-    box-shadow: inset 1px 1px var(--shadow), inset -1px -1px var(--light);
+    box-shadow: var(--bevel-pressed);
     background:
       repeating-conic-gradient(#d8d8d8 0% 25%, var(--face) 0% 50%) 0 0 / 4px 4px;
   }
@@ -409,13 +561,11 @@ button {
 .paint .canvas-well {
   position: relative;
   padding: 2px;
-  box-shadow:
-    inset 1px 1px var(--shadow), inset -1px -1px var(--hilite),
-    inset 2px 2px var(--dark), inset -2px -2px var(--light);
+  box-shadow: var(--bevel-in);
 
   canvas {
     display: block;
-    background: #fff;
+    background: var(--paper);
     cursor: crosshair;
     /* Otherwise a trackpad or touch drag scrolls the page instead of drawing. */
     touch-action: none;
@@ -458,7 +608,7 @@ button {
     position: absolute;
     width: 16px;
     height: 14px;
-    box-shadow: inset 1px 1px var(--shadow), inset -1px -1px var(--hilite);
+    box-shadow: var(--bevel-in-thin);
   }
   .swatch-fg {
     top: 1px;
@@ -469,7 +619,7 @@ button {
   .swatch-bg {
     top: 12px;
     left: 12px;
-    background: #fff;
+    background: var(--paper);
   }
 
   .swatches {
@@ -480,29 +630,19 @@ button {
   }
   .swatch {
     background: var(--ink);
-    box-shadow: inset 1px 1px var(--shadow), inset -1px -1px var(--hilite);
+    box-shadow: var(--bevel-in-thin);
   }
   .swatch.active {
-    box-shadow:
-      inset 1px 1px var(--shadow), inset -1px -1px var(--hilite),
-      0 0 0 1px var(--dark);
+    box-shadow: var(--bevel-in-thin), 0 0 0 1px var(--dark);
   }
   .palette-note {
-    color: #404040;
+    color: var(--text-dim);
   }
 }
 
 .paint .statusbar {
-  display: flex;
-  gap: 2px;
+  margin-top: 0;
 
-  .pane {
-    padding: 2px 5px;
-    box-shadow: inset 1px 1px var(--shadow), inset -1px -1px var(--hilite);
-  }
-  .hint {
-    flex: 1 1 auto;
-  }
   .coords {
     width: 62px;
   }
